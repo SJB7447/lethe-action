@@ -8,7 +8,8 @@
 | `player:jump` | `{ wall }` | 점프 (벽 점프면 wall=true) |
 | `player:land` | `{ impact }` 0~1 | 빠르게 떨어지다 착지 |
 | `player:dash` | `{ perfect }` | 대시 시작. perfect=회피 성공(록온 단축 보너스) |
-| `player:hurt` | `{ hp, maxHp }` | 피격, 그리고 방 초기화 시 현재 체력 |
+| `player:hurt` | `{ hp, maxHp }` | **실제 피격에만** 발생. hp는 피해 직후 값(0일 수 있음). 피격음·플래시는 여기에 연결 |
+| `player:hp` | `{ hp, maxHp }` | 체력 표시용. 방 초기화, 피격 후(실험실 자동 회복 포함) 현재 체력. 체력칸 갱신은 여기에 연결 |
 | `needle:fire` | `{}` | 기억 추출 바늘 발사 |
 | `needle:hit` | `{ enemyId, killed }` | 바늘 적중 |
 | `lock:progress` | `{ enemyId, progress }` | 적에게 록온이 걸리기 시작 (progress=0) |
@@ -28,5 +29,7 @@
 | `dive:end` | `{}` | 다이빙 연출 끝 |
 | `mode:change` | `{ assist }` | 록온 수동/자동 보조 전환 |
 | `room:reset` | `{}` | 방 초기화 |
+
+피격 시 순서: `player:hurt` → `player:hp` (이어서 콤보가 있었다면 `combo:end` → `combo:change`)
 
 새 이벤트가 필요하면 `docs/REQUESTS.md`에 적어 주세요.
