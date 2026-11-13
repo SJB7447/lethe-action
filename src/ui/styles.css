@@ -1,0 +1,32 @@
+/* [담당: Antigravity] HUD 스타일. 레테 팔레트로 다듬어 주세요. */
+:root {
+  --amber: #e8b04b;
+  --crimson: #c2334d;
+  --ink: #0b0d14;
+  --text: #d8dcf0;
+}
+html, body { margin: 0; height: 100%; background: var(--ink); color: var(--text); font-family: system-ui, 'Pretendard', 'Noto Sans KR', sans-serif; overflow: hidden; }
+#app { position: relative; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
+#game { width: 100%; height: 100%; }
+#game canvas { display: block; margin: 0 auto; }
+#hud { position: absolute; inset: 0; pointer-events: none; }
+.hud-top { position: absolute; top: 14px; left: 16px; display: flex; gap: 20px; align-items: center; }
+.hp i { display: inline-block; width: 12px; height: 12px; margin-right: 4px; border: 1px solid var(--text); transform: rotate(45deg); opacity: .4; }
+.hp i.on { background: #6ee7f2; border-color: #6ee7f2; opacity: 1; }
+.gauge-label { font-size: 11px; letter-spacing: .1em; opacity: .7; }
+.gauge-bar { width: 220px; height: 8px; background: #1d2130; border: 1px solid #333a52; }
+.gauge-fill { height: 100%; width: 0; background: #9b7bd4; transition: width .12s; }
+.gauge-fill.full { background: var(--amber); box-shadow: 0 0 12px var(--amber); animation: pulse .6s infinite alternate; }
+.mode { font-size: 12px; padding: 3px 8px; border: 1px solid #333a52; }
+.combo { position: absolute; top: 60px; right: 40px; font-size: 64px; font-weight: 800; color: var(--amber); opacity: 0; text-shadow: 0 0 18px rgba(232,176,75,.5); }
+.combo small { font-size: 16px; margin-left: 6px; color: var(--text); }
+.combo.show { opacity: 1; }
+.combo.pop { animation: pop .18s ease-out; }
+.dive-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s; }
+.dive-overlay.show { opacity: 1; }
+.dive-text { font-size: 42px; font-weight: 800; letter-spacing: .2em; color: #e9dcff; text-shadow: 0 0 24px #9b7bd4; text-align: center; }
+.dive-text span { display: block; font-size: 18px; letter-spacing: .5em; margin-top: 8px; color: var(--amber); }
+.help { position: absolute; bottom: 14px; left: 16px; font-size: 12px; line-height: 1.6; background: rgba(11,13,20,.75); padding: 10px 12px; border: 1px solid #262b3d; }
+.help.hidden { display: none; }
+@keyframes pop { from { transform: scale(1.35); } to { transform: scale(1); } }
+@keyframes pulse { from { opacity: .7; } to { opacity: 1; } }
