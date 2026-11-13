@@ -13,12 +13,6 @@ export function initAudio(bus: EventBus): void {
   window.addEventListener('keydown', unlock);
   window.addEventListener('pointerdown', unlock);
 
-  let lastHp = Number.POSITIVE_INFINITY;
-
-  bus.on('room:reset', () => {
-    lastHp = Number.POSITIVE_INFINITY;
-  });
-
   bus.on('player:jump', ({ wall }) => {
     sfx.play(wall ? 'jump_wall' : 'jump', { volume: 0.45 });
   });
@@ -31,11 +25,8 @@ export function initAudio(bus: EventBus): void {
     sfx.play(perfect ? 'dash_perfect' : 'dash', { volume: perfect ? 0.68 : 0.48 });
   });
 
-  bus.on('player:hurt', ({ hp }) => {
-    if (hp < lastHp) {
-      sfx.play('hurt', { volume: 0.65 });
-    }
-    lastHp = hp;
+  bus.on('player:hurt', () => {
+    sfx.play('hurt', { volume: 0.65 });
   });
 
   bus.on('needle:fire', () => {

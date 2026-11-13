@@ -82,7 +82,6 @@ export function initUI(bus: EventBus): void {
   const help = byId('hud-help');
   const helpHint = byId('hud-help-hint');
 
-  let lastHp = Number.POSITIVE_INFINITY;
   let flashTimer = 0;
 
   const triggerFlash = (kind: 'hurt' | 'impact') => {
@@ -96,25 +95,23 @@ export function initUI(bus: EventBus): void {
   };
 
   bus.on('room:reset', () => {
-    lastHp = Number.POSITIVE_INFINITY;
     combo.classList.remove('show', 'high');
     dive.classList.remove('show');
     diveCount.textContent = '';
   });
 
-  bus.on('player:hurt', ({ hp: v, maxHp }) => {
+  bus.on('player:hp', ({ hp: v, maxHp }) => {
     hp.innerHTML = Array.from({ length: maxHp }, (_, i) => {
       const on = i < v;
       return `<i class="hp-pip ${on ? 'on' : ''}"></i>`;
     }).join('');
+  });
 
-    if (v < lastHp) {
-      triggerFlash('hurt');
-      hpPanel.classList.remove('shake');
-      void hpPanel.offsetWidth;
-      hpPanel.classList.add('shake');
-    }
-    lastHp = v;
+  bus.on('player:hurt', () => {
+    triggerFlash('hurt');
+    hpPanel.classList.remove('shake');
+    void hpPanel.offsetWidth;
+    hpPanel.classList.add('shake');
   });
 
   bus.on('gauge:change', ({ value, max }) => {
