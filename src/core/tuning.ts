@@ -5,11 +5,11 @@
 export const DEFAULT_TUNING = {
   // ── 록온·연쇄 (기획안 1단계 슬라이더 6종) ──
   lockTime: 0.45, // 먼 거리 기준 록온 시간
-  fragmentWindow: 0.6, // 조각이 열려 있는 시간
+  fragmentWindow: 0.63, // 조각이 열려 있는 시간
   chainSearchRadius: 380, // 타격 후 다음 적을 찾는 거리
   chainSpeed: 1800, // 파고들 때 이동 속도
   hitstop: 0.07, // 타격 순간 정지 시간
-  chainInertia: 0.55, // 타격 후 남는 속도 비율
+  chainInertia: 0.42, // 타격 후 남는 속도 비율
 
   // ── 록온 보조 규칙 ──
   lockTimeMin: 0.2, // 가까울 때 록온 시간
@@ -35,8 +35,8 @@ export const DEFAULT_TUNING = {
   coyoteTime: 0.1,
   jumpBuffer: 0.12,
   wallSlideSpeed: 170,
-  wallJumpX: 400,
-  wallJumpY: 720,
+  wallJumpX: 240,
+  wallJumpY: 690,
   wallJumpLock: 0.14, // 벽 점프 직후 조작이 덜 먹는 시간
 
   // ── 회피 (무적 대시) ──
@@ -56,7 +56,7 @@ export const DEFAULT_TUNING = {
   gaugePerNeedle: 3,
 
   // ── 적 ──
-  enemyAggroRange: 240,
+  enemyAggroRange: 170,
   enemyTelegraph: 0.55,
   enemyCounterTelegraph: 0.28,
   enemyLungeSpeed: 560,
