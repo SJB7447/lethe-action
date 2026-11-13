@@ -48,8 +48,8 @@ export const DEFAULT_TUNING = {
 
   // ── 기억 추출 바늘 ──
   needleSpeed: 1500,
-  needleRange: 280,
-  needleCooldown: 0.22,
+  needleRange: 600,
+  needleCooldown: 0.4,
 
   // ── 게이지 ──
   gaugePerStrike: 18,
