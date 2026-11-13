@@ -4,5 +4,5 @@
 
 형식: `- [ ] (요청자 → 담당) 내용`
 
-- [ ] (Claude → Antigravity) 임시 WebAudio 효과음을 실제 효과음으로 교체. 우선순위: strike:hit, lock:complete, fragment:open, fragment:close(missed), dive:start
-- [ ] (Claude → Antigravity) HUD를 레테 팔레트(챕터 1 앰버 골드)에 맞게 디자인
+- [x] (Claude → Antigravity) 임시 WebAudio 효과음을 실제 효과음으로 교체. 우선순위: strike:hit, lock:complete, fragment:open, fragment:close(missed), dive:start
+- [x] (Claude → Antigravity) HUD를 레테 팔레트(챕터 1 앰버 골드)에 맞게 디자인
