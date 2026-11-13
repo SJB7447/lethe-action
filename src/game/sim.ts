@@ -140,7 +140,7 @@ export class Sim {
     this.bus.emit('room:reset', {});
     this.bus.emit('gauge:change', { value: 0, max: GAUGE_MAX });
     this.bus.emit('combo:change', { count: 0 });
-    this.bus.emit('player:hurt', { hp: this.player.hp, maxHp: this.player.maxHp });
+    this.bus.emit('player:hp', { hp: this.player.hp, maxHp: this.player.maxHp });
   }
 
   private makeEnemy(sp: EnemySpawn): Enemy {
@@ -689,8 +689,10 @@ export class Sim {
       this.hitstop = 0.05;
       this.shake = 10;
       this.burst(cx(p), cy(p), 10, 0xff5470, 260);
+      // player:hurt는 실제 피격에만 보냅니다. hp는 피해 직후 값(0일 수 있음)입니다.
+      this.bus.emit('player:hurt', { hp: Math.max(0, p.hp), maxHp: p.maxHp });
       if (p.hp <= 0) p.hp = p.maxHp; // 실험실이므로 바로 회복
-      this.bus.emit('player:hurt', { hp: p.hp, maxHp: p.maxHp });
+      this.bus.emit('player:hp', { hp: p.hp, maxHp: p.maxHp });
       if (this.combo > 0) this.endCombo();
       break;
     }

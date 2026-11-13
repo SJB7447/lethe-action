@@ -7,6 +7,7 @@ export interface GameEventMap {
   'player:land': { impact: number };
   'player:dash': { perfect: boolean };
   'player:hurt': { hp: number; maxHp: number };
+  'player:hp': { hp: number; maxHp: number };
   'needle:fire': Record<string, never>;
   'needle:hit': { enemyId: number; killed: boolean };
   'lock:progress': { enemyId: number; progress: number };
