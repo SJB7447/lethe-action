@@ -72,7 +72,8 @@ export const DEFAULT_TUNING = {
   // ── 모드 ──
   assist: false,
   autoRespawn: true,
-  showDebug: false,
+  showDebug: false, // 범위·판정 박스 표시
+  showArt: true, // 그래픽 표시 (끄면 임시 사각형). 주소 ?art=0 / ?art=1 로도 지정
 };
 
 export type Tuning = typeof DEFAULT_TUNING;

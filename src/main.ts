@@ -9,6 +9,11 @@ import { initUI } from './ui';
 
 loadTuning();
 
+// 주소의 ?art=0 / ?art=1 이 저장된 "그래픽 표시" 설정보다 우선합니다.
+const artParam = new URLSearchParams(window.location.search).get('art');
+if (artParam === '0') tuning.showArt = false;
+if (artParam === '1') tuning.showArt = true;
+
 const bus = new EventBus();
 const input = new Input();
 initUI(bus);

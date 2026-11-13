@@ -105,6 +105,7 @@ export class Sim {
   hitstop = 0; // 남은 정지 시간 (실시간)
   shake = 0; // 흔들림 세기 (px)
   timeScale = 1;
+  time = 0; // 게임 시간 (s). 히트스톱 중 멈추고 슬로우 중 느려짐. 그림 애니메이션 기준
   diveTimer = 0; // >0이면 고스트 다이빙 연출 중 (실시간)
   private diveImpactDone = false;
   private ghostTimer = 0;
@@ -197,6 +198,7 @@ export class Sim {
   }
 
   private step(dt: number): void {
+    this.time += dt;
     const p = this.player;
     this.updatePlayer(dt);
     for (const e of this.enemies) this.updateEnemy(e, dt);
