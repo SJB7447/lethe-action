@@ -22,12 +22,13 @@ Claude Code, Antigravity, Codex 세 도구가 함께 작업합니다. 작업 전
 | `src/debug/` | Claude Code | 튜닝 패널 |
 | `src/audio/` | **Antigravity** | 효과음 |
 | `src/ui/` | **Antigravity** | HUD, 메뉴, 오버레이, CSS |
-| `public/assets/audio/`, `public/assets/ui/` | **Antigravity** | 사운드·UI 에셋 |
+| `src/art/` | **Antigravity** | 그래픽 코드 (팔레트, 캐릭터·적·이펙트·배경) — `docs/ART_GUIDE.md` |
+| `public/assets/audio/`, `public/assets/ui/`, `public/assets/art/` | **Antigravity** | 사운드·UI·그래픽 에셋 |
 | 리뷰 | **Codex** | PR 리뷰, `docs/reviews/` |
 
 ## 절대 규칙
 1. **담당 폴더 밖의 파일은 고치지 않습니다.** 필요하면 `docs/REQUESTS.md`에 요청을 적습니다.
-2. 게임 로직과 효과음·UI는 **이벤트로만 연결**합니다. `src/audio`, `src/ui`는
+2. 게임 로직과 효과음·UI는 **이벤트로만 연결**합니다. 그래픽(`src/art`)은 게임 상태를 `import type`으로 읽기만 하고 바꾸지 않습니다. `src/audio`, `src/ui`는
    `src/game`을 import하지 않고 `src/core/events.ts`의 이벤트만 구독합니다.
 3. 새 이벤트가 필요하면 Claude Code가 `src/core/events.ts`와 `docs/EVENTS.md`를 함께 갱신합니다.
 4. 충돌 판정(히트박스)과 그림은 분리합니다. 그림을 바꿔도 판정 크기는 바뀌면 안 됩니다.

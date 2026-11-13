@@ -5,17 +5,20 @@
 - `src/core`, `src/game`, `src/scenes`, `src/debug`, 빌드 설정.
 - 이벤트 목록(`src/core/events.ts`, `docs/EVENTS.md`)의 관리자.
 
-## Antigravity — 효과음과 UI
+## Antigravity — 효과음, UI, 그래픽 (Gemini 4 Hydrogen)
 - `src/audio/`: 이벤트를 받아 효과음을 재생. 지금은 WebAudio로 만든 임시음.
   실제 효과음 파일은 `public/assets/audio/`에 넣고 `src/audio/sfx.ts`에서 교체.
 - `src/ui/`: HUD(연결 게이지, 콤보, 체력), 고스트 다이빙 연출 오버레이, 도움말, 이후 메뉴.
 - 진입점: `src/audio/index.ts`의 `initAudio(bus)`, `src/ui/index.ts`의 `initUI(bus)`.
   이 두 함수의 이름과 인자만 유지하면 내부는 자유롭게 바꿔도 됩니다.
+- `src/art/`, `public/assets/art/`: 그래픽. 규칙은 `docs/ART_GUIDE.md`. 판정 크기와 게임 상태는 읽기만 합니다.
+  AI로 만든 화면 요소는 `docs/art/AI_LOG.md`에 기록합니다.
 - 게임 코드가 필요한 정보를 주지 않으면 `docs/REQUESTS.md`에 이벤트 추가를 요청합니다.
 
 ## Codex — 코드 리뷰와 점검
 - 모든 PR을 리뷰합니다. 기준: 버그, 프레임 의존 코드(dt 누락), 하드코딩된 튜닝값,
   담당 폴더 규칙 위반, 이벤트 계약 위반.
+  그래픽 PR은 추가로: 판정 변경 여부, 읽기 순서, 성능 예산, AI_LOG 누락 (`docs/ART_GUIDE.md` 3·4·6장).
 - 리뷰 결과는 PR 코멘트 또는 `docs/reviews/YYYY-MM-DD-주제.md`.
 - 직접 수정이 필요하면 `codex/…` 브랜치로 별도 PR을 엽니다. `main`에 직접 커밋하지 않습니다.
 
