@@ -38,20 +38,20 @@ export const DEFAULT_TUNING = {
   coyoteTime: 0.1,
   jumpBuffer: 0.12,
   wallSlideSpeed: 170,
-  wallJumpX: 240,
-  wallJumpY: 690,
+  wallJumpX: 250,
+  wallJumpY: 700,
   wallJumpLock: 0.14, // 벽 점프 직후 조작이 덜 먹는 시간
 
   // ── 회피 (무적 대시) ──
   dashSpeed: 950,
   dashTime: 0.14,
-  dashCooldown: 0.3,
+  dashCooldown: 0.7,
   dashIFrames: 0.2,
   perfectDodgeRange: 150,
 
   // ── 기억 추출 바늘 ──
   needleSpeed: 1500,
-  needleRange: 600,
+  needleRange: 540,
   needleCooldown: 0.4,
 
   // ── 게이지 ──
@@ -68,7 +68,7 @@ export const DEFAULT_TUNING = {
   respawnDelay: 3,
 
   // ── 적 인식 (시선) ──
-  enemyViewRange: 280, // 적 시선 거리
+  enemyViewRange: 310, // 적 시선 거리
   enemyViewHalfAngle: 40, // 적 시선 원뿔 반각 (도)
   enemyAlertMemory: 2, // 이단아를 놓친 뒤 발각 상태를 유지하는 시간
   enemyInvestigateTime: 2.5, // 소리를 들은 뒤 확인하러 가는 시간
@@ -77,7 +77,7 @@ export const DEFAULT_TUNING = {
   noticeMarkTime: 0.9, // 느낌표 표시 시간
 
   // ── 소리 (범위 px) ──
-  soundWallFactor: 0.35, // 벽 너머로 남은 거리의 몇 배까지 퍼지는지 (0 = 완전히 막힘)
+  soundWallFactor: 0.4, // 벽 너머로 남은 거리의 몇 배까지 퍼지는지 (0 = 완전히 막힘)
   soundLife: 0.6, // 소리 범위 표시 시간
   soundStep: 110, // 달리기 발소리
   soundStepInterval: 0.32,
