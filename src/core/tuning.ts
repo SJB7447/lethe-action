@@ -4,7 +4,7 @@
  */
 export const DEFAULT_TUNING = {
   // ── 록온·연쇄 (기획안 1단계 슬라이더 6종) ──
-  lockTime: 0.45, // 먼 거리 기준 록온 시간
+  lockTime: 0.6, // 먼 거리 기준 록온 시간
   fragmentWindow: 0.63, // 조각이 열려 있는 시간
   chainSearchRadius: 380, // 타격 후 다음 적을 찾는 거리
   chainSpeed: 1800, // 파고들 때 이동 속도
