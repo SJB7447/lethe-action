@@ -43,13 +43,17 @@ export const placeholderArt: Record<ArtLayer, LayerPainter> = {
 
   perception(g, v) {
     if (!v.tuning.showPerception) return;
-    // 소리 범위: 퍼져 나가며 사라짐. 벽 너머는 줄어든 모양 그대로
+    // 소리 범위: 외곽선은 처음부터 실제 판정 범위 그대로 (적은 소리가 난 순간 이 안에서 듣습니다).
+    // 안쪽에서 퍼져 나가는 물결은 장식이며 판정과 무관합니다.
     for (const s of v.sounds) {
       const age = 1 - s.life / s.maxLife; // 0 → 1
-      const grow = Math.min(1, age / 0.25);
       const fade = 1 - age;
-      const pts = s.points.map((q) => ({ x: s.x + (q.x - s.x) * grow, y: s.y + (q.y - s.y) * grow }));
-      polygon(g, pts, C.sound, 0.07 * fade, 1.5, 0.55 * fade);
+      polygon(g, s.points, C.sound, 0.06 * fade, 1.5, 0.6 * fade);
+      const wave = Math.min(1, age / 0.35);
+      if (wave < 1) {
+        const pts = s.points.map((q) => ({ x: s.x + (q.x - s.x) * wave, y: s.y + (q.y - s.y) * wave }));
+        polygon(g, pts, C.sound, 0, 1, 0.35 * (1 - wave));
+      }
     }
     // 적 시선
     for (const e of v.enemies) {

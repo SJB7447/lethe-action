@@ -122,6 +122,7 @@ export interface Ghost {
 
 export const GAUGE_MAX = 100;
 const FIXED_DT = 1 / 120;
+const SOUND_RAYS = 96; // 소리 모양 정밀도 (판정도 이 모양을 씀)
 const PLAYER_W = 22;
 const PLAYER_H = 40;
 
@@ -249,7 +250,9 @@ export class Sim {
   private step(dt: number): void {
     this.time += dt;
     const p = this.player;
+    this.updateGaze();
     this.updatePlayer(dt);
+    this.updateGaze(); // 이번 스텝의 입력·이동으로 바뀐 몸 방향·눈 위치를 록온에 반영
     for (const e of this.enemies) this.updateEnemy(e, dt);
     this.updateLock(dt);
     this.updateNeedles(dt);
@@ -948,10 +951,12 @@ export class Sim {
     if (radius <= 1) return;
     const solids = this.world.solids;
     const wall = T.soundWallFactor;
-    this.sounds.push({ x, y, radius, kind, life: T.soundLife, maxLife: T.soundLife, points: soundShape(x, y, radius, wall, solids, 48) });
+    // 판정은 화면에 그리는 이 모양으로 합니다 (보이는 범위 = 들리는 범위).
+    const shape = soundShape(x, y, radius, wall, solids, SOUND_RAYS);
+    this.sounds.push({ x, y, radius, kind, life: T.soundLife, maxLife: T.soundLife, points: shape });
     for (const e of this.enemies) {
       if (e.state === 'down' || e.awareness === 'alert') continue;
-      if (!hears(x, y, radius, wall, cx(e), cy(e), solids)) continue;
+      if (!hears(shape, cx(e), cy(e))) continue;
       const wasIdle = e.awareness === 'idle';
       e.awareness = 'heard';
       e.awareTimer = T.enemyInvestigateTime;

@@ -9,35 +9,40 @@ export interface Vec {
   y: number;
 }
 
-/** (ox, oy)에서 (dx, dy) 방향으로 maxLen까지 나아갈 때 처음 닿는 벽까지의 거리. 없으면 maxLen. */
+const EPS = 1e-6;
+
+/**
+ * (ox, oy)에서 (dx, dy) 방향으로 maxLen까지 나아갈 때 처음 닿는 벽까지의 거리. 없으면 maxLen.
+ * - 벽 표면에서 바깥쪽으로 나가는 경우는 막히지 않습니다 (표면에 닿아 있을 뿐 들어가지 않음).
+ * - 벽 표면에서 안쪽으로 들어가는 경우는 0입니다.
+ * - 시작점이 벽 내부이면 그 벽은 무시합니다.
+ */
 export function rayDistance(ox: number, oy: number, dx: number, dy: number, maxLen: number, solids: readonly Rect[]): number {
   let best = maxLen;
   for (const s of solids) {
-    // 시작점이 벽 안이면 그 벽은 무시합니다 (발판 위에 붙어 있는 경우 등).
-    if (ox > s.x && ox < s.x + s.w && oy > s.y && oy < s.y + s.h) continue;
-    let tmin = 0;
-    let tmax = best;
-    if (Math.abs(dx) < 1e-9) {
-      if (ox <= s.x || ox >= s.x + s.w) continue;
+    let tEnter = -Infinity;
+    let tExit = Infinity;
+    if (Math.abs(dx) < EPS) {
+      if (ox <= s.x || ox >= s.x + s.w) continue; // 평행하고 바깥(또는 표면 위)
     } else {
-      let t1 = (s.x - ox) / dx;
-      let t2 = (s.x + s.w - ox) / dx;
-      if (t1 > t2) [t1, t2] = [t2, t1];
-      tmin = Math.max(tmin, t1);
-      tmax = Math.min(tmax, t2);
-      if (tmin > tmax) continue;
+      const t1 = (s.x - ox) / dx;
+      const t2 = (s.x + s.w - ox) / dx;
+      tEnter = Math.max(tEnter, Math.min(t1, t2));
+      tExit = Math.min(tExit, Math.max(t1, t2));
     }
-    if (Math.abs(dy) < 1e-9) {
+    if (Math.abs(dy) < EPS) {
       if (oy <= s.y || oy >= s.y + s.h) continue;
     } else {
-      let t1 = (s.y - oy) / dy;
-      let t2 = (s.y + s.h - oy) / dy;
-      if (t1 > t2) [t1, t2] = [t2, t1];
-      tmin = Math.max(tmin, t1);
-      tmax = Math.min(tmax, t2);
-      if (tmin > tmax) continue;
+      const t1 = (s.y - oy) / dy;
+      const t2 = (s.y + s.h - oy) / dy;
+      tEnter = Math.max(tEnter, Math.min(t1, t2));
+      tExit = Math.min(tExit, Math.max(t1, t2));
     }
-    if (tmin < best) best = tmin;
+    if (tEnter > tExit) continue; // 빗나감
+    if (tExit <= EPS) continue; // 뒤쪽이거나, 표면에서 바깥으로 나가는 중
+    if (tEnter < -EPS) continue; // 시작점이 벽 내부
+    const hit = Math.max(0, tEnter);
+    if (hit < best) best = hit;
   }
   return best;
 }
@@ -96,12 +101,23 @@ export function soundReach(sx: number, sy: number, dx: number, dy: number, radiu
   return hit + (radius - hit) * wallFactor;
 }
 
-/** 대상이 소리를 듣는지 */
-export function hears(sx: number, sy: number, radius: number, wallFactor: number, tx: number, ty: number, solids: readonly Rect[]): boolean {
-  const d = Math.hypot(tx - sx, ty - sy);
-  if (d > radius) return false;
-  if (d < 1e-6) return true;
-  return d <= soundReach(sx, sy, (tx - sx) / d, (ty - sy) / d, radius, wallFactor, solids);
+/** 다각형 안에 점이 있는지 (짝홀 규칙) */
+export function pointInPolygon(pts: readonly Vec[], x: number, y: number): boolean {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const a = pts[i];
+    const b = pts[j];
+    if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * 대상이 소리를 듣는지. 화면에 그리는 소리 모양(soundShape)과 같은 다각형으로 판정하므로
+ * 보이는 범위 = 들리는 범위입니다.
+ */
+export function hears(shape: readonly Vec[], tx: number, ty: number): boolean {
+  return pointInPolygon(shape, tx, ty);
 }
 
 /** 소리 범위 모양 (벽 너머는 줄어듦). 판정(hears)과 같은 규칙. */

@@ -20,7 +20,7 @@
 | `strike:hit` | `{ enemyId, chain }` | 파고들어 타격 성공 (히트스톱 시작 순간) |
 | `enemy:telegraph` | `{ enemyId, counter }` | 적 공격 예고. counter=조각 놓친 뒤 반격 |
 | `enemy:down` | `{ enemyId }` | 적 쓰러짐 |
-| `enemy:notice` | `{ enemyId, cause }` | 적이 알아챔. cause=`sound`(소리를 듣고 확인하러 옴, 앰버 느낌표) / `sight`(이단아를 봄·맞음·반격, 크림슨 느낌표). 평상시 → 알아챔으로 바뀔 때 한 번 |
+| `enemy:notice` | `{ enemyId, cause }` | 적이 알아챔. cause=`sound`(소리를 듣고 확인하러 옴, 앰버 느낌표) / `sight`(이단아를 봄·맞음·반격, 크림슨 느낌표). **알아챔 단계가 올라갈 때마다 한 번**: `idle → heard`는 sound, `idle·heard → alert`는 sight. 그래서 소리를 듣고 확인하러 왔다가 이단아를 보면 sound → sight 두 번 옵니다. 같은 단계 안(계속 보이는 동안, 확인 중 소리를 또 들음)에서는 다시 오지 않습니다 |
 | `combo:change` | `{ count }` | 콤보 수 변경 (0이면 종료) |
 | `combo:end` | `{ total }` | 콤보 끝, 최종 수 |
 | `gauge:change` | `{ value, max }` | 연결 게이지 변경 |
