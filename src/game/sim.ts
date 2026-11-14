@@ -1,6 +1,7 @@
 import type { EventBus } from '../core/events';
 import type { Input } from '../core/input';
 import { tuning as T } from '../core/tuning';
+import { hears, inSight, sightFan, soundShape, type Vec } from './perception';
 import { approach, cx, cy, overlaps, World, type Body } from './physics';
 import { ROOM, type EnemySpawn } from './room';
 
@@ -31,6 +32,29 @@ export interface Player extends Body {
   strikeTarget: Enemy | null;
   strikeTimer: number;
   hurtFlash: number;
+  /** 시선 각도 (라디안, 0 = 오른쪽, 아래가 +) */
+  gaze: number;
+  /** 마우스·오른쪽 스틱으로 시선을 정하고 있는지 (아니면 몸이 향한 쪽) */
+  gazeActive: boolean;
+  eyeX: number;
+  eyeY: number;
+  /** 시선 원뿔 모양 (벽에서 잘림). 첫 점은 눈 */
+  gazeFan: Vec[];
+  stepTimer: number;
+}
+
+export type Awareness = 'idle' | 'heard' | 'alert';
+export type SoundKind = 'step' | 'jump' | 'land' | 'dash' | 'needle' | 'needleHit' | 'strike' | 'dive';
+
+export interface Sound {
+  x: number;
+  y: number;
+  radius: number;
+  kind: SoundKind;
+  life: number;
+  maxLife: number;
+  /** 소리 범위 모양 (벽 너머는 줄어듦). 판정과 같은 규칙 */
+  points: Vec[];
 }
 
 export type EnemyState = 'patrol' | 'telegraph' | 'lunge' | 'recover' | 'stunned' | 'down';
@@ -53,6 +77,18 @@ export interface Enemy extends Body {
   fragmentMax: number;
   hurtFlash: number;
   bob: number;
+  /** idle: 모름 / heard: 소리를 듣고 확인하러 감 / alert: 이단아를 봄 */
+  awareness: Awareness;
+  awareTimer: number;
+  heardX: number;
+  heardY: number;
+  /** >0이면 느낌표 표시 중 */
+  markTimer: number;
+  markKind: 'sound' | 'sight';
+  eyeX: number;
+  eyeY: number;
+  /** 시선 원뿔 모양 (벽에서 잘림). 첫 점은 눈. 쓰러지면 빈 배열 */
+  viewFan: Vec[];
 }
 
 export interface Needle {
@@ -96,6 +132,9 @@ export class Sim {
   needles: Needle[] = [];
   particles: Particle[] = [];
   ghosts: Ghost[] = [];
+  sounds: Sound[] = [];
+  /** 마우스가 가리키는 월드 좌표. LabScene이 매 프레임 넣어 줍니다. */
+  aimWorld: Vec | null = null;
 
   gauge = 0;
   combo = 0;
@@ -128,11 +167,13 @@ export class Sim {
       mode: 'normal', facing: 1, hp: 5, maxHp: 5, invuln: 0, coyote: 0, jumpBuf: 0, jumping: false,
       wallLock: 0, dashTimer: 0, dashCd: 0, airDashes: 1, dashDir: { x: 1, y: 0 }, needleCd: 0,
       attackBuf: 0, dodgeBonus: 0, strikeTarget: null, strikeTimer: 0, hurtFlash: 0,
+      gaze: 0, gazeActive: false, eyeX: 0, eyeY: 0, gazeFan: [], stepTimer: 0,
     };
     this.enemies = ROOM.enemies.map((sp) => this.makeEnemy(sp));
     this.needles = [];
     this.particles = [];
     this.ghosts = [];
+    this.sounds = [];
     this.gauge = 0;
     this.combo = 0;
     this.chain = 0;
@@ -151,6 +192,8 @@ export class Sim {
       x: sp.x, y: sp.y, w: 30, h: sp.flying ? 30 : 44, vx: 0, vy: 0, onGround: false, wallDir: 0,
       hp, maxHp: hp, state: 'patrol', timer: 0, dir: 1, attackCd: 1, lungeDir: { x: 0, y: 0 },
       counter: false, lockProgress: 0, fragment: 0, fragmentMax: 1, hurtFlash: 0, bob: Math.random() * 6,
+      awareness: 'idle', awareTimer: 0, heardX: 0, heardY: 0, markTimer: 0, markKind: 'sound',
+      eyeX: 0, eyeY: 0, viewFan: [],
     };
   }
 
@@ -158,6 +201,12 @@ export class Sim {
 
   /** 렌더 프레임마다 한 번. realDt는 실제 경과 시간. */
   frame(realDt: number): void {
+    this.updateGaze();
+    this.advance(realDt);
+    this.updateFans();
+  }
+
+  private advance(realDt: number): void {
     const p = this.player;
     if (this.input.consume('reset')) this.reset();
     if (this.input.consume('assist')) {
@@ -228,6 +277,8 @@ export class Sim {
       pt.vy *= 1 - 4 * dt;
     }
     this.particles = this.particles.filter((pt) => pt.life > 0);
+    for (const snd of this.sounds) snd.life -= dt;
+    this.sounds = this.sounds.filter((snd) => snd.life > 0);
   }
 
   // ───────────────────────── 플레이어 ─────────────────────────
@@ -268,6 +319,8 @@ export class Sim {
 
     // ── 일반 이동 ──
     if (inp.x !== 0 && p.wallLock <= 0) p.facing = inp.x > 0 ? 1 : -1;
+    // 시선을 쓰고 있으면 몸도 시선 쪽을 봅니다
+    if (p.gazeActive && p.wallLock <= 0) p.facing = Math.cos(p.gaze) >= 0 ? 1 : -1;
     const target = inp.x * T.runSpeed;
     const control = p.wallLock > 0 ? 0.25 : 1;
     if (p.onGround) {
@@ -294,6 +347,7 @@ export class Sim {
         p.jumpBuf = 0;
         p.coyote = 0;
         this.bus.emit('player:jump', { wall: false });
+        this.emitSound(cx(p), p.y + p.h, T.soundJump, 'jump');
       } else if (p.wallDir !== 0 && !p.onGround) {
         p.vx = -p.wallDir * T.wallJumpX;
         p.vy = -T.wallJumpY;
@@ -302,6 +356,7 @@ export class Sim {
         p.jumping = true;
         p.jumpBuf = 0;
         this.bus.emit('player:jump', { wall: true });
+        this.emitSound(cx(p), cy(p), T.soundJump, 'jump');
       }
     }
     if (p.jumping && !inp.jumpHeld && p.vy < 0) {
@@ -317,6 +372,17 @@ export class Sim {
       if (!this.wasGrounded && fallSpeed > 300) {
         this.bus.emit('player:land', { impact: fallSpeed / T.maxFall });
         this.burst(cx(p), p.y + p.h, 5, 0x8a90a8, 120);
+        this.emitSound(cx(p), p.y + p.h - 2, T.soundLand * Math.min(1, fallSpeed / T.maxFall), 'land');
+      }
+      // 달리기 발소리
+      if (Math.abs(p.vx) > T.runSpeed * 0.6) {
+        p.stepTimer -= dt;
+        if (p.stepTimer <= 0) {
+          p.stepTimer = T.soundStepInterval;
+          this.emitSound(cx(p), p.y + p.h - 2, T.soundStep, 'step');
+        }
+      } else {
+        p.stepTimer = 0;
       }
     }
     this.wasGrounded = p.onGround;
@@ -348,6 +414,7 @@ export class Sim {
       this.burst(cx(p), cy(p), 10, 0x6ee7f2, 260);
     }
     this.bus.emit('player:dash', { perfect });
+    this.emitSound(cx(p), cy(p), T.soundDash, 'dash');
   }
 
   private updateDash(dt: number): void {
@@ -368,7 +435,11 @@ export class Sim {
     const inp = this.input.state;
     let dx = p.facing as number;
     let dy = 0;
-    if (inp.y < 0) {
+    if (p.gazeActive) {
+      // 시선 방향으로 쏩니다
+      dx = Math.cos(p.gaze);
+      dy = Math.sin(p.gaze);
+    } else if (inp.y < 0) {
       dy = -1;
       dx = inp.x;
     } else if (inp.y > 0 && !p.onGround) {
@@ -382,6 +453,7 @@ export class Sim {
     });
     p.needleCd = T.needleCooldown;
     this.bus.emit('needle:fire', {});
+    this.emitSound(cx(p), cy(p), T.soundNeedle, 'needle');
   }
 
   private updateNeedles(dt: number): void {
@@ -408,6 +480,8 @@ export class Sim {
           e.vx = Math.sign(n.vx || 1) * 160;
         }
         this.bus.emit('needle:hit', { enemyId: e.id, killed });
+        this.emitSound(n.x, n.y, T.soundNeedleHit, 'needleHit');
+        if (!killed) this.alert(e); // 맞은 적은 이단아를 알아챕니다
         break;
       }
     }
@@ -429,21 +503,19 @@ export class Sim {
 
   private updateLock(dt: number): void {
     const p = this.player;
-    const px = cx(p);
-    const py = cy(p);
+    const eye = this.playerEye();
+    const px = eye.x;
+    const py = eye.y;
+    const halfAngle = (T.gazeHalfAngle * Math.PI) / 180;
     const lockable = (e: Enemy) => e.kind === 'cracked' && e.state !== 'down' && e.fragment <= 0;
 
     let candidates: Enemy[] = [];
     if (this.input.state.lockHeld || T.assist) {
+      // 이단아의 시선 원뿔 안에 있고 벽에 가리지 않은 적만 록온됩니다.
       candidates = this.enemies
         .filter(lockable)
+        .filter((e) => inSight(eye, p.gaze, halfAngle, T.lockRange, cx(e), cy(e), this.world.solids))
         .map((e) => ({ e, d: Math.hypot(cx(e) - px, cy(e) - py) }))
-        .filter(({ d }) => d <= T.lockRange)
-        .filter(({ e }) => {
-          // 자동 보조는 바라보는 쪽 우선 (버튼을 누르고 있으면 전방향)
-          if (this.input.state.lockHeld) return true;
-          return Math.sign(cx(e) - px) === p.facing || Math.abs(cx(e) - px) < 60;
-        })
         .sort((a, b) => a.d - b.d)
         .slice(0, this.input.state.lockHeld ? T.maxLocks : 1)
         .map(({ e }) => e);
@@ -484,6 +556,7 @@ export class Sim {
   private onFragmentMissed(e: Enemy): void {
     this.bus.emit('fragment:close', { enemyId: e.id, missed: true });
     if (e.state !== 'down') {
+      this.alert(e);
       e.state = 'telegraph';
       e.timer = T.enemyCounterTelegraph;
       e.counter = true;
@@ -507,8 +580,10 @@ export class Sim {
       const dy = cy(e) - cy(p);
       const d = Math.hypot(dx, dy);
       if (d > T.lockRange * 1.3) continue;
-      // 입력 방향과 같은 쪽 적을 우선
-      const dirBonus = inp.x !== 0 || inp.y !== 0 ? ((dx * inp.x + dy * inp.y) / (d || 1)) * 120 : 0;
+      // 시선(없으면 입력 방향)과 같은 쪽 적을 우선
+      let dirBonus = 0;
+      if (p.gazeActive) dirBonus = ((dx * Math.cos(p.gaze) + dy * Math.sin(p.gaze)) / (d || 1)) * 120;
+      else if (inp.x !== 0 || inp.y !== 0) dirBonus = ((dx * inp.x + dy * inp.y) / (d || 1)) * 120;
       const score = d - dirBonus;
       if (score < bestScore) {
         bestScore = score;
@@ -570,6 +645,7 @@ export class Sim {
     this.shake = Math.min(24, T.shake + (this.chain - 1) * T.strikeShakeGrowth);
     this.burst(cx(e), cy(e), 18, 0xe8b04b, 420);
     this.burst(cx(e), cy(e), 8, 0xffffff, 300);
+    this.emitSound(cx(e), cy(e), T.soundStrike, 'strike');
 
     // 관성 유지 + 살짝 띄워서 다음 연쇄로 이어지게
     p.mode = 'normal';
@@ -604,6 +680,7 @@ export class Sim {
   private updateEnemy(e: Enemy, dt: number): void {
     e.hurtFlash = Math.max(0, e.hurtFlash - dt);
     e.attackCd = Math.max(0, e.attackCd - dt);
+    e.markTimer = Math.max(0, e.markTimer - dt);
     const p = this.player;
 
     if (e.state === 'down') {
@@ -620,19 +697,43 @@ export class Sim {
     const dy = cy(p) - cy(e);
     const dist = Math.hypot(dx, dy);
     e.timer -= edt;
+    this.perceive(e, edt);
 
     switch (e.state) {
       case 'patrol': {
-        const left = e.spawn.x - e.spawn.patrol;
-        const right = e.spawn.x + e.spawn.patrol;
-        if (e.x < left) e.dir = 1;
-        if (e.x > right) e.dir = -1;
-        e.vx = e.dir * 70;
-        if (dist < T.enemyAggroRange && e.attackCd <= 0 && p.hp > 0) {
-          e.state = 'telegraph';
-          e.timer = T.enemyTelegraph;
-          e.counter = false;
-          this.bus.emit('enemy:telegraph', { enemyId: e.id, counter: false });
+        if (e.awareness === 'alert') {
+          // 발각: 쫓아가다가 가까우면 공격
+          e.dir = dx >= 0 ? 1 : -1;
+          if (e.flying) {
+            e.vx = (dx / (dist || 1)) * T.enemyChaseSpeed;
+            e.vy = (dy / (dist || 1)) * T.enemyChaseSpeed;
+          } else {
+            e.vx = Math.abs(dx) > 12 ? e.dir * T.enemyChaseSpeed : 0;
+          }
+          if (dist < T.enemyAggroRange && e.attackCd <= 0 && p.hp > 0) {
+            e.state = 'telegraph';
+            e.timer = T.enemyTelegraph;
+            e.counter = false;
+            this.bus.emit('enemy:telegraph', { enemyId: e.id, counter: false });
+          }
+        } else if (e.awareness === 'heard') {
+          // 소리가 난 곳으로 확인하러 감
+          const hx = e.heardX - cx(e);
+          const hy = e.heardY - cy(e);
+          if (Math.abs(hx) > 10) e.dir = hx > 0 ? 1 : -1;
+          if (e.flying) {
+            const len = Math.hypot(hx, hy);
+            e.vx = len > 12 ? (hx / len) * T.enemyInvestigateSpeed : 0;
+            e.vy = len > 12 ? (hy / len) * T.enemyInvestigateSpeed : 0;
+          } else {
+            e.vx = Math.abs(hx) > 12 ? e.dir * T.enemyInvestigateSpeed : 0;
+          }
+        } else {
+          const left = e.spawn.x - e.spawn.patrol;
+          const right = e.spawn.x + e.spawn.patrol;
+          if (e.x < left) e.dir = 1;
+          if (e.x > right) e.dir = -1;
+          e.vx = e.dir * 70;
         }
         break;
       }
@@ -665,7 +766,7 @@ export class Sim {
     }
 
     if (e.flying) {
-      if (e.state === 'patrol') {
+      if (e.state === 'patrol' && e.awareness === 'idle') {
         e.bob += edt * 2.4;
         e.vy = (e.spawn.y + Math.sin(e.bob) * 24 - e.y) * 4;
       }
@@ -747,6 +848,7 @@ export class Sim {
       this.timeScale = 1;
       this.combo += count;
       this.comboTimer = T.comboTimeout;
+      this.emitSound(cx(this.player), cy(this.player), T.soundDive, 'dive');
       this.bus.emit('dive:impact', { count });
       this.bus.emit('gauge:change', { value: 0, max: GAUGE_MAX });
       this.bus.emit('combo:change', { count: this.combo });
@@ -755,6 +857,107 @@ export class Sim {
       this.diveTimer = 0;
       this.timeScale = 1;
       this.bus.emit('dive:end', {});
+    }
+  }
+
+  // ───────────────────────── 시선 · 인식 · 소리 ─────────────────────────
+
+  private playerEye(): Vec {
+    const p = this.player;
+    return { x: cx(p) + p.facing * 3, y: p.y + 11 };
+  }
+
+  private enemyEye(e: Enemy): Vec {
+    return { x: cx(e) + e.dir * 8, y: e.flying ? cy(e) : e.y + 12 };
+  }
+
+  /** 마우스(월드 좌표) 또는 오른쪽 스틱으로 시선을 정합니다. 둘 다 없으면 몸이 향한 쪽. */
+  private updateGaze(): void {
+    const p = this.player;
+    const inp = this.input.state;
+    const eye = this.playerEye();
+    if (inp.aimSource === 'mouse' && this.aimWorld) {
+      p.gaze = Math.atan2(this.aimWorld.y - eye.y, this.aimWorld.x - eye.x);
+      p.gazeActive = true;
+    } else if (inp.aimSource === 'stick') {
+      p.gaze = Math.atan2(inp.aimStickY, inp.aimStickX);
+      p.gazeActive = true;
+    } else {
+      p.gaze = p.facing > 0 ? 0 : Math.PI;
+      p.gazeActive = false;
+    }
+  }
+
+  /** 그림용 시선 원뿔. 렌더 프레임마다 한 번. */
+  private updateFans(): void {
+    const p = this.player;
+    const solids = this.world.solids;
+    const pe = this.playerEye();
+    p.eyeX = pe.x;
+    p.eyeY = pe.y;
+    p.gazeFan = sightFan(pe, p.gaze, (T.gazeHalfAngle * Math.PI) / 180, T.lockRange, solids, 24);
+    for (const e of this.enemies) {
+      if (e.state === 'down') {
+        e.viewFan = [];
+        continue;
+      }
+      const ee = this.enemyEye(e);
+      e.eyeX = ee.x;
+      e.eyeY = ee.y;
+      e.viewFan = sightFan(ee, e.dir > 0 ? 0 : Math.PI, (T.enemyViewHalfAngle * Math.PI) / 180, T.enemyViewRange, solids, 16);
+    }
+  }
+
+  /** 적의 시선 판정. 보이면 발각, 놓치면 기억 시간 뒤 확인 → 평상시. */
+  private perceive(e: Enemy, dt: number): void {
+    const p = this.player;
+    const seen =
+      this.diveTimer <= 0 &&
+      inSight(this.enemyEye(e), e.dir > 0 ? 0 : Math.PI, (T.enemyViewHalfAngle * Math.PI) / 180, T.enemyViewRange, cx(p), cy(p), this.world.solids);
+    if (seen) {
+      this.alert(e);
+      return;
+    }
+    e.awareTimer -= dt;
+    if (e.awareness === 'alert' && e.awareTimer <= 0) {
+      e.awareness = 'heard'; // 마지막으로 본 곳을 확인하러 감
+      e.awareTimer = T.enemyInvestigateTime;
+    } else if (e.awareness === 'heard' && e.awareTimer <= 0) {
+      e.awareness = 'idle';
+    }
+  }
+
+  /** 적이 이단아를 알아챔 (봤거나, 맞았거나, 반격) */
+  private alert(e: Enemy): void {
+    const p = this.player;
+    if (e.awareness !== 'alert') this.notice(e, 'sight');
+    e.awareness = 'alert';
+    e.awareTimer = T.enemyAlertMemory;
+    e.heardX = cx(p);
+    e.heardY = cy(p);
+  }
+
+  private notice(e: Enemy, cause: 'sound' | 'sight'): void {
+    e.markTimer = T.noticeMarkTime;
+    e.markKind = cause;
+    this.bus.emit('enemy:notice', { enemyId: e.id, cause });
+  }
+
+  /** 소리를 냅니다. 벽 너머로는 줄어들고, 범위 안의 적은 확인하러 옵니다. */
+  private emitSound(x: number, y: number, radius: number, kind: SoundKind): void {
+    if (radius <= 1) return;
+    const solids = this.world.solids;
+    const wall = T.soundWallFactor;
+    this.sounds.push({ x, y, radius, kind, life: T.soundLife, maxLife: T.soundLife, points: soundShape(x, y, radius, wall, solids, 48) });
+    for (const e of this.enemies) {
+      if (e.state === 'down' || e.awareness === 'alert') continue;
+      if (!hears(x, y, radius, wall, cx(e), cy(e), solids)) continue;
+      const wasIdle = e.awareness === 'idle';
+      e.awareness = 'heard';
+      e.awareTimer = T.enemyInvestigateTime;
+      e.heardX = x;
+      e.heardY = y;
+      if (wasIdle) this.notice(e, 'sound');
     }
   }
 

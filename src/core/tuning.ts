@@ -11,6 +11,9 @@ export const DEFAULT_TUNING = {
   hitstop: 0.07, // 타격 순간 정지 시간
   chainInertia: 0.42, // 타격 후 남는 속도 비율
 
+  // ── 시선 (이단아) ──
+  gazeHalfAngle: 30, // 시선 원뿔 반각 (도). 이 안에 있고 벽에 가리지 않은 적만 록온 (거리는 lockRange)
+
   // ── 록온 보조 규칙 ──
   lockTimeMin: 0.2, // 가까울 때 록온 시간
   lockRange: 420, // 록온 가능 거리
@@ -56,13 +59,35 @@ export const DEFAULT_TUNING = {
   gaugePerNeedle: 3,
 
   // ── 적 ──
-  enemyAggroRange: 170,
+  enemyAggroRange: 170, // 발각된 뒤 공격을 시작하는 거리
   enemyTelegraph: 0.55,
   enemyCounterTelegraph: 0.28,
   enemyLungeSpeed: 560,
   enemyAttackCooldown: 1.8,
   enemySlowWhileOpen: 0.25, // 조각이 열린 적의 이동 속도 배수
   respawnDelay: 3,
+
+  // ── 적 인식 (시선) ──
+  enemyViewRange: 280, // 적 시선 거리
+  enemyViewHalfAngle: 40, // 적 시선 원뿔 반각 (도)
+  enemyAlertMemory: 2, // 이단아를 놓친 뒤 발각 상태를 유지하는 시간
+  enemyInvestigateTime: 2.5, // 소리를 들은 뒤 확인하러 가는 시간
+  enemyChaseSpeed: 170,
+  enemyInvestigateSpeed: 95,
+  noticeMarkTime: 0.9, // 느낌표 표시 시간
+
+  // ── 소리 (범위 px) ──
+  soundWallFactor: 0.35, // 벽 너머로 남은 거리의 몇 배까지 퍼지는지 (0 = 완전히 막힘)
+  soundLife: 0.6, // 소리 범위 표시 시간
+  soundStep: 110, // 달리기 발소리
+  soundStepInterval: 0.32,
+  soundJump: 130,
+  soundLand: 240, // 착지 (낙하 세기만큼 비례)
+  soundDash: 180,
+  soundNeedle: 150,
+  soundNeedleHit: 200,
+  soundStrike: 320,
+  soundDive: 600,
 
   // ── 연출 ──
   shake: 7,
@@ -72,6 +97,7 @@ export const DEFAULT_TUNING = {
   // ── 모드 ──
   assist: false,
   autoRespawn: true,
+  showPerception: true, // 시선·소리 범위 표시
   showDebug: false, // 범위·판정 박스 표시
   showArt: true, // 그래픽 표시 (끄면 임시 사각형). 주소 ?art=0 / ?art=1 로도 지정
 };

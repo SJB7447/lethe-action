@@ -20,6 +20,7 @@
 | `strike:hit` | `{ enemyId, chain }` | 파고들어 타격 성공 (히트스톱 시작 순간) |
 | `enemy:telegraph` | `{ enemyId, counter }` | 적 공격 예고. counter=조각 놓친 뒤 반격 |
 | `enemy:down` | `{ enemyId }` | 적 쓰러짐 |
+| `enemy:notice` | `{ enemyId, cause }` | 적이 알아챔. cause=`sound`(소리를 듣고 확인하러 옴, 앰버 느낌표) / `sight`(이단아를 봄·맞음·반격, 크림슨 느낌표). 평상시 → 알아챔으로 바뀔 때 한 번 |
 | `combo:change` | `{ count }` | 콤보 수 변경 (0이면 종료) |
 | `combo:end` | `{ total }` | 콤보 끝, 최종 수 |
 | `gauge:change` | `{ value, max }` | 연결 게이지 변경 |

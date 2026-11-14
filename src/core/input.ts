@@ -1,5 +1,5 @@
 /**
- * 키보드 + 게임패드 입력. 렌더 프레임마다 poll()로 읽고,
+ * 키보드 + 마우스 + 게임패드 입력. 렌더 프레임마다 poll()로 읽고,
  * "이번에 눌림"은 consume*()로 한 번만 소비합니다.
  */
 export interface InputState {
@@ -7,6 +7,11 @@ export interface InputState {
   y: number; // -1..1 (아래가 +)
   jumpHeld: boolean;
   lockHeld: boolean;
+  /** 시선을 정하는 장치. 마지막으로 움직인 쪽이 이깁니다. none이면 몸이 향한 쪽을 봅니다. */
+  aimSource: 'none' | 'mouse' | 'stick';
+  /** 오른쪽 스틱 방향 (aimSource가 stick일 때) */
+  aimStickX: number;
+  aimStickY: number;
 }
 
 type Action = 'jump' | 'dash' | 'attack' | 'dive' | 'assist' | 'reset' | 'debug' | 'help';
@@ -31,8 +36,11 @@ const KEYMAP: Record<string, Action | 'left' | 'right' | 'up' | 'down' | 'lock'>
 const PAD = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, SELECT: 8, START: 9 };
 
 export class Input {
-  readonly state: InputState = { x: 0, y: 0, jumpHeld: false, lockHeld: false };
+  readonly state: InputState = {
+    x: 0, y: 0, jumpHeld: false, lockHeld: false, aimSource: 'none', aimStickX: 1, aimStickY: 0,
+  };
   private down = new Set<string>();
+  private mouseLock = false;
   private pressed = new Set<Action>();
   private padPrev: boolean[] = [];
 
@@ -48,14 +56,35 @@ export class Input {
       const a = KEYMAP[e.code];
       if (a) this.down.delete(a);
     });
-    target.addEventListener('blur', () => this.down.clear());
+    target.addEventListener('blur', () => {
+      this.down.clear();
+      this.mouseLock = false;
+    });
+
+    // 마우스: 게임 화면(canvas) 위에서만 받습니다. 튜닝 패널 클릭은 무시.
+    const onCanvas = (e: Event) => e.target instanceof HTMLCanvasElement;
+    target.addEventListener('mousemove', (e) => {
+      if (onCanvas(e)) this.state.aimSource = 'mouse';
+    });
+    target.addEventListener('mousedown', (e) => {
+      if (!onCanvas(e)) return;
+      this.state.aimSource = 'mouse';
+      if (e.button === 0) this.pressed.add('attack');
+      if (e.button === 2) this.mouseLock = true;
+    });
+    target.addEventListener('mouseup', (e) => {
+      if (e.button === 2) this.mouseLock = false;
+    });
+    target.addEventListener('contextmenu', (e) => {
+      if (onCanvas(e)) e.preventDefault();
+    });
   }
 
   poll(): void {
     let x = (this.down.has('right') ? 1 : 0) - (this.down.has('left') ? 1 : 0);
     let y = (this.down.has('down') ? 1 : 0) - (this.down.has('up') ? 1 : 0);
     let jumpHeld = this.down.has('jump');
-    let lockHeld = this.down.has('lock');
+    let lockHeld = this.down.has('lock') || this.mouseLock;
 
     const pad = getPad();
     if (pad) {
@@ -71,6 +100,14 @@ export class Input {
       if (b(15)) x = 1;
       if (b(12)) y = -1;
       if (b(13)) y = 1;
+      // 오른쪽 스틱 = 시선
+      const rx = pad.axes[2] ?? 0;
+      const ry = pad.axes[3] ?? 0;
+      if (Math.hypot(rx, ry) > 0.35) {
+        this.state.aimSource = 'stick';
+        this.state.aimStickX = rx;
+        this.state.aimStickY = ry;
+      }
       edge(PAD.A, 'jump');
       edge(PAD.B, 'dash');
       edge(PAD.RT, 'dash');
