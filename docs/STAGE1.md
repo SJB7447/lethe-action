@@ -12,7 +12,7 @@
 ## 튜닝 슬라이더 (기획안의 6종)
 | 슬라이더 | 키 | 현재 기본값 |
 |---|---|---|
-| 록온 시간 | `lockTime` | 0.45s (가까우면 `lockTimeMin`까지 짧아짐) |
+| 록온 시간 | `lockTime` | 0.6s (가까우면 `lockTimeMin`까지 짧아짐) |
 | 조각 유지 시간 | `fragmentWindow` | 0.63s |
 | 연쇄 탐색 거리 | `chainSearchRadius` | 380px |
 | 연쇄 이동 속도 | `chainSpeed` | 1800px/s |
