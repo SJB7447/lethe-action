@@ -5,3 +5,4 @@
 
 | 날짜 | 파일 | 도구·모델 | 무엇을 만들었나 | 사람이 정한 것 / 고친 것 |
 |---|---|---|---|---|
+| 2026-11-14 | src/art/palette.ts, src/art/player.ts, src/art/perception.ts, src/art/alerts.ts | Antigravity | 이단아 실루엣·시선 추적 눈동자(player), 시선 원뿔·소리 범위(perception), 각진 느낌표(alerts) 그리기 코드 | 지침서 팔레트·판정 내 실루엣·gaze/viewFan/sounds[].points 일치 규칙 지정 |

@@ -20,6 +20,8 @@ export const SFX_KEYS = [
   'enemy_telegraph',
   'enemy_counter',
   'enemy_down',
+  'notice_sound',
+  'notice_sight',
   'dive_ready',
   'dive_start',
   'dive_impact',

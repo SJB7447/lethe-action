@@ -69,6 +69,12 @@ export function initAudio(bus: EventBus): void {
     sfx.play('enemy_down', { volume: 0.55 });
   });
 
+  bus.on('enemy:notice', ({ cause }) => {
+    sfx.play(cause === 'sight' ? 'notice_sight' : 'notice_sound', {
+      volume: cause === 'sight' ? 0.72 : 0.52,
+    });
+  });
+
   bus.on('dive:ready', () => {
     sfx.play('dive_ready', { volume: 0.62 });
   });

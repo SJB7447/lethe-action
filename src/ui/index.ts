@@ -56,13 +56,14 @@ export function initUI(bus: EventBus): void {
         <div><kbd>←→</kbd> <kbd>AD</kbd> 이동</div>
         <div><kbd>Space</kbd> <kbd>Z</kbd> 점프</div>
         <div><kbd>Shift</kbd> <kbd>X</kbd> 대시(무적)</div>
-        <div><kbd>J</kbd> <kbd>C</kbd> 파고들기 / 바늘</div>
-        <div><kbd>K</kbd> <kbd>V</kbd> 록온 (누르기)</div>
+        <div><kbd>마우스</kbd> 시선</div>
+        <div><kbd>J</kbd> <kbd>C</kbd> <kbd>좌클릭</kbd> 파고들기 / 바늘</div>
+        <div><kbd>K</kbd> <kbd>V</kbd> <kbd>우클릭</kbd> 록온 (누르기)</div>
         <div><kbd>E</kbd> 고스트 다이빙</div>
         <div><kbd>T</kbd> 자동 보조</div>
         <div><kbd>R</kbd> 방 초기화 · <kbd>\`</kbd> 범위</div>
       </div>
-      <div class="help-pad">패드: A 점프 · B/RT 대시 · X 공격 · RB/LT 록온 · Y 다이빙 · Select 보조</div>
+      <div class="help-pad">패드: R스틱 시선 · A 점프 · B/RT 대시 · X 공격 · RB/LT 록온 · Y 다이빙 · Select 보조</div>
     </aside>
 
     <div class="help-hint hidden" id="hud-help-hint"><kbd>H</kbd> 조작 안내</div>
