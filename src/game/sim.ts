@@ -1,7 +1,7 @@
 import type { EventBus } from '../core/events';
 import type { Input } from '../core/input';
 import { tuning as T } from '../core/tuning';
-import { hears, inSight, sightFan, soundShape, type Vec } from './perception';
+import { hears, inCone, inSight, sightFan, soundShape, type Vec } from './perception';
 import { approach, cx, cy, overlaps, World, type Body } from './physics';
 import { ROOM, type EnemySpawn } from './room';
 
@@ -41,6 +41,8 @@ export interface Player extends Body {
   /** 시선 원뿔 모양 (벽에서 잘림). 첫 점은 눈 */
   gazeFan: Vec[];
   stepTimer: number;
+  /** 지금 파고드는 공격이 퍼펙트 시간 안에 시작됐는지 */
+  strikePerfect: boolean;
 }
 
 export type Awareness = 'idle' | 'heard' | 'alert';
@@ -89,6 +91,8 @@ export interface Enemy extends Body {
   eyeY: number;
   /** 시선 원뿔 모양 (벽에서 잘림). 첫 점은 눈. 쓰러지면 빈 배열 */
   viewFan: Vec[];
+  /** >0이면 퍼펙트 판정 시간 (조각이 열린 직후, 남은 시간) */
+  perfectTimer: number;
 }
 
 export interface Needle {
@@ -136,6 +140,10 @@ export class Sim {
   sounds: Sound[] = [];
   /** 마우스가 가리키는 월드 좌표. LabScene이 매 프레임 넣어 줍니다. */
   aimWorld: Vec | null = null;
+  /** 화면에 보이는 월드 영역. LabScene이 매 프레임 넣어 줍니다 (퍼펙트 연쇄 대상 범위). */
+  viewRect: { x: number; y: number; w: number; h: number } | null = null;
+  /** 퍼펙트 연쇄 중: 화면 안의 모든 적을 벽·시선과 상관없이 록온 (연쇄가 끝나면 해제) */
+  perfectMode = false;
 
   gauge = 0;
   combo = 0;
@@ -168,13 +176,14 @@ export class Sim {
       mode: 'normal', facing: 1, hp: 5, maxHp: 5, invuln: 0, coyote: 0, jumpBuf: 0, jumping: false,
       wallLock: 0, dashTimer: 0, dashCd: 0, airDashes: 1, dashDir: { x: 1, y: 0 }, needleCd: 0,
       attackBuf: 0, dodgeBonus: 0, strikeTarget: null, strikeTimer: 0, hurtFlash: 0,
-      gaze: 0, gazeActive: false, eyeX: 0, eyeY: 0, gazeFan: [], stepTimer: 0,
+      gaze: 0, gazeActive: false, eyeX: 0, eyeY: 0, gazeFan: [], stepTimer: 0, strikePerfect: false,
     };
     this.enemies = ROOM.enemies.map((sp) => this.makeEnemy(sp));
     this.needles = [];
     this.particles = [];
     this.ghosts = [];
     this.sounds = [];
+    this.perfectMode = false;
     this.gauge = 0;
     this.combo = 0;
     this.chain = 0;
@@ -194,7 +203,7 @@ export class Sim {
       hp, maxHp: hp, state: 'patrol', timer: 0, dir: 1, attackCd: 1, lungeDir: { x: 0, y: 0 },
       counter: false, lockProgress: 0, fragment: 0, fragmentMax: 1, hurtFlash: 0, bob: Math.random() * 6,
       awareness: 'idle', awareTimer: 0, heardX: 0, heardY: 0, markTimer: 0, markKind: 'sound',
-      eyeX: 0, eyeY: 0, viewFan: [],
+      eyeX: 0, eyeY: 0, viewFan: [], perfectTimer: 0,
     };
   }
 
@@ -515,9 +524,18 @@ export class Sim {
     let candidates: Enemy[] = [];
     if (this.input.state.lockHeld || T.assist) {
       // 이단아의 시선 원뿔 안에 있고 벽에 가리지 않은 적만 록온됩니다.
+      // 연쇄가 이어지는 동안에는 벽을 무시합니다 (시선 원뿔 안이면 록온).
+      // 퍼펙트 연쇄 중에는 화면 안의 모든 적이 대상입니다 (벽·시선 무시).
+      const chaining = this.chainActive();
       candidates = this.enemies
         .filter(lockable)
-        .filter((e) => inSight(eye, p.gaze, halfAngle, T.lockRange, cx(e), cy(e), this.world.solids))
+        .filter((e) =>
+          this.perfectMode
+            ? this.onScreen(e)
+            : chaining
+              ? inCone(eye, p.gaze, halfAngle, T.lockRange, cx(e), cy(e))
+              : inSight(eye, p.gaze, halfAngle, T.lockRange, cx(e), cy(e), this.world.solids),
+        )
         .map((e) => ({ e, d: Math.hypot(cx(e) - px, cy(e) - py) }))
         .sort((a, b) => a.d - b.d)
         .slice(0, this.input.state.lockHeld ? T.maxLocks : 1)
@@ -527,8 +545,10 @@ export class Sim {
     for (const e of this.enemies) {
       if (e.fragment > 0) {
         e.fragment -= dt;
+        e.perfectTimer = Math.max(0, e.perfectTimer - dt);
         if (e.fragment <= 0) {
           e.fragment = 0;
+          e.perfectTimer = 0;
           this.onFragmentMissed(e);
         }
         continue;
@@ -553,6 +573,7 @@ export class Sim {
     const window = T.fragmentWindow * (T.assist ? T.assistWindowBonus : 1);
     e.fragment = window;
     e.fragmentMax = window;
+    e.perfectTimer = Math.min(window, T.perfectWindow * (T.assist ? T.assistWindowBonus : 1));
     this.bus.emit('fragment:open', { enemyId: e.id, window, chained });
   }
 
@@ -601,6 +622,7 @@ export class Sim {
     p.mode = 'strike';
     p.strikeTarget = e;
     p.strikeTimer = 0.6;
+    p.strikePerfect = e.perfectTimer > 0; // 퍼펙트 시간 안에 공격을 시작했는지
     p.invuln = Math.max(p.invuln, 0.3);
     this.bus.emit('strike:start', { enemyId: e.id, chain: this.chain + 1 });
   }
@@ -638,9 +660,18 @@ export class Sim {
     this.chain++;
     this.combo++;
     this.comboTimer = T.comboTimeout;
+    const perfect = p.strikePerfect;
+    p.strikePerfect = false;
     e.fragment = 0;
     this.downEnemy(e);
-    this.bus.emit('strike:hit', { enemyId: e.id, chain: this.chain });
+    this.bus.emit('strike:hit', { enemyId: e.id, chain: this.chain, perfect });
+    if (perfect) {
+      this.addGauge(T.gaugePerfectBonus);
+      if (!this.perfectMode) {
+        this.perfectMode = true;
+        this.bus.emit('perfect:start', {});
+      }
+    }
     this.bus.emit('combo:change', { count: this.combo });
     this.addGauge(T.gaugePerStrike);
 
@@ -660,10 +691,15 @@ export class Sim {
     this.world.depenetrate(p);
 
     // 다음 적의 조각을 바로 엽니다.
+    // - 평소 연쇄: 연쇄 탐색 거리 안 + 이단아의 시선 원뿔 안 (벽은 무시)
+    // - 퍼펙트 연쇄: 화면 안의 가장 가까운 적 (거리·시선·벽 무시)
+    this.updateGaze();
+    const eye = this.playerEye();
+    const halfAngle = (T.gazeHalfAngle * Math.PI) / 180;
     const next = this.enemies
       .filter((o) => o !== e && o.kind === 'cracked' && o.state !== 'down' && o.fragment <= 0)
-      .map((o) => ({ o, d: Math.hypot(cx(o) - cx(p), cy(o) - cy(p)) }))
-      .filter(({ d }) => d <= T.chainSearchRadius)
+      .filter((o) => (this.perfectMode ? this.onScreen(o) : inCone(eye, p.gaze, halfAngle, T.chainSearchRadius, cx(o), cy(o))))
+      .map((o) => ({ o, d: Math.hypot(cx(o) - eye.x, cy(o) - eye.y) }))
       .sort((a, b) => a.d - b.d)[0];
     if (next) {
       next.o.lockProgress = 0;
@@ -672,6 +708,10 @@ export class Sim {
   }
 
   private endCombo(): void {
+    if (this.perfectMode) {
+      this.perfectMode = false;
+      this.bus.emit('perfect:end', {});
+    }
     if (this.combo > 0) this.bus.emit('combo:end', { total: this.combo });
     this.combo = 0;
     this.chain = 0;
@@ -808,6 +848,7 @@ export class Sim {
     e.state = 'down';
     e.timer = T.respawnDelay;
     e.fragment = 0;
+    e.perfectTimer = 0;
     e.lockProgress = 0;
     e.vx = 0;
     e.vy = 0;
@@ -865,6 +906,20 @@ export class Sim {
 
   // ───────────────────────── 시선 · 인식 · 소리 ─────────────────────────
 
+  /** 적이 화면 안에 있는지 (화면 정보가 없으면 참) */
+  private onScreen(e: Enemy): boolean {
+    const v = this.viewRect;
+    if (!v) return true;
+    const x = cx(e);
+    const y = cy(e);
+    return x >= v.x && x <= v.x + v.w && y >= v.y && y <= v.y + v.h;
+  }
+
+  /** 연쇄가 이어지는 중인지 (첫 파고들기 성공 후 콤보가 끊기기 전까지) */
+  chainActive(): boolean {
+    return this.chain > 0;
+  }
+
   private playerEye(): Vec {
     const p = this.player;
     return { x: cx(p) + p.facing * 3, y: p.y + 11 };
@@ -898,7 +953,9 @@ export class Sim {
     const pe = this.playerEye();
     p.eyeX = pe.x;
     p.eyeY = pe.y;
-    p.gazeFan = sightFan(pe, p.gaze, (T.gazeHalfAngle * Math.PI) / 180, T.lockRange, solids, 24);
+    // 연쇄 중에는 록온이 벽을 무시하므로 그림도 벽에서 자르지 않습니다 (보이는 범위 = 판정 범위).
+    // 퍼펙트 연쇄 중에는 시선 제한이 없으므로 원뿔을 그리지 않습니다.
+    p.gazeFan = this.perfectMode ? [] : sightFan(pe, p.gaze, (T.gazeHalfAngle * Math.PI) / 180, T.lockRange, this.chainActive() ? [] : solids, 24);
     for (const e of this.enemies) {
       if (e.state === 'down') {
         e.viewFan = [];

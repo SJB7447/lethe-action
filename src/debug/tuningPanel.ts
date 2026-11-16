@@ -19,6 +19,14 @@ const GROUPS: { title: string; expanded: boolean; items: Range[] }[] = [
     ],
   },
   {
+    title: '퍼펙트 (난이도)',
+    expanded: true,
+    items: [
+      ['perfectWindow', '퍼펙트 판정 시간', 0, 0.6, 0.01],
+      ['gaugePerfectBonus', '퍼펙트 추가 게이지', 0, 40, 1],
+    ],
+  },
+  {
     title: '시선·적 인식',
     expanded: true,
     items: [
@@ -116,6 +124,23 @@ const GROUPS: { title: string; expanded: boolean; items: Range[] }[] = [
       ['diveSlowmo', '다이빙 슬로우 배율', 0.05, 1, 0.05],
     ],
   },
+  {
+    title: '타격 화면 효과',
+    expanded: true,
+    items: [
+      ['fxZoomPunch', '타격 확대', 0, 0.25, 0.005],
+      ['fxKick', '카메라 밀림(px)', 0, 40, 1],
+      ['fxFlash', '번쩍임', 0, 1, 0.01],
+      ['fxImpactLines', '집중선 개수', 0, 32, 1],
+      ['fxChainGrowth', '연쇄마다 증가', 0, 1, 0.05],
+      ['fxChainCap', '연쇄 최대 배수', 1, 4, 0.1],
+      ['fxLockPulse', '록온 가장자리 맥동', 0, 1.5, 0.05],
+      ['fxStrikeTunnel', '파고들기 터널', 0, 1.5, 0.05],
+      ['fxMissFlash', '놓침 가장자리', 0, 1.5, 0.05],
+      ['fxPerfectBoost', '퍼펙트 효과 배수', 1, 3, 0.05],
+      ['fxPerfectGlow', '퍼펙트 연쇄 가장자리', 0, 1.5, 0.05],
+    ],
+  },
 ];
 
 export function initTuningPanel(bus: EventBus, onRespawn: () => void): Pane {
@@ -128,6 +153,7 @@ export function initTuningPanel(bus: EventBus, onRespawn: () => void): Pane {
   modes.addBinding(tuning, 'showDebug', { label: '범위·판정 박스' });
   modes.addBinding(tuning, 'showArt', { label: '그래픽 표시' });
   modes.addBinding(tuning, 'showPerception', { label: '시선·소리 범위' });
+  modes.addBinding(tuning, 'fxEnabled', { label: '타격 화면 효과' });
 
   for (const group of GROUPS) {
     const f = pane.addFolder({ title: group.title, expanded: group.expanded });

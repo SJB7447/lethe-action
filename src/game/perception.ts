@@ -62,6 +62,13 @@ export function angleDiff(a: number, b: number): number {
   return d;
 }
 
+/** 시선 원뿔 안에 있는지 (거리·각도만, 벽은 보지 않음) */
+export function inCone(eye: Vec, angle: number, halfAngleRad: number, range: number, tx: number, ty: number): boolean {
+  const d = Math.hypot(tx - eye.x, ty - eye.y);
+  if (d > range) return false;
+  return Math.abs(angleDiff(Math.atan2(ty - eye.y, tx - eye.x), angle)) <= halfAngleRad;
+}
+
 /** 시선 원뿔 안에 있고(거리·각도) 벽에 가리지 않았는지 */
 export function inSight(
   eye: Vec,

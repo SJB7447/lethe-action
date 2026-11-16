@@ -11,6 +11,10 @@ export const DEFAULT_TUNING = {
   hitstop: 0.07, // 타격 순간 정지 시간
   chainInertia: 0.42, // 타격 후 남는 속도 비율
 
+  // ── 퍼펙트 (난이도) ──
+  perfectWindow: 0.15, // 조각이 열린 직후 이 시간 안에 공격하면 퍼펙트 → 퍼펙트 연쇄 (화면 안 모든 적 록온)
+  gaugePerfectBonus: 8, // 퍼펙트 타격 추가 게이지
+
   // ── 시선 (이단아) ──
   gazeHalfAngle: 30, // 시선 원뿔 반각 (도). 이 안에 있고 벽에 가리지 않은 적만 록온 (거리는 lockRange)
 
@@ -94,9 +98,23 @@ export const DEFAULT_TUNING = {
   strikeShakeGrowth: 1.5, // 연쇄가 이어질수록 흔들림 증가
   diveSlowmo: 0.15,
 
+  // ── 타격 화면 효과 ──
+  fxZoomPunch: 0.06, // 타격 순간 화면 확대 (1 + 값)
+  fxKick: 12, // 파고든 방향으로 카메라가 밀리는 거리 (px)
+  fxFlash: 0.28, // 타격 순간 번쩍임 세기
+  fxImpactLines: 14, // 타격 지점 집중선 개수 (0 = 끔)
+  fxChainGrowth: 0.25, // 연쇄 1회마다 효과가 커지는 비율
+  fxChainCap: 2.2, // 연쇄로 커지는 최대 배수
+  fxLockPulse: 0.6, // 록온 완료·연쇄 조각 열림 때 가장자리 앰버 맥동
+  fxStrikeTunnel: 0.55, // 파고드는 동안 가장자리 어두움
+  fxMissFlash: 0.7, // 조각을 놓쳤을 때 가장자리 크림슨
+  fxPerfectBoost: 1.6, // 퍼펙트 타격 효과 배수
+  fxPerfectGlow: 0.45, // 퍼펙트 연쇄 중 가장자리 흰빛
+
   // ── 모드 ──
   assist: false,
   autoRespawn: true,
+  fxEnabled: true, // 타격 화면 효과 표시
   showPerception: true, // 시선·소리 범위 표시
   showDebug: false, // 범위·판정 박스 표시
   showArt: true, // 그래픽 표시 (끄면 임시 사각형). 주소 ?art=0 / ?art=1 로도 지정
