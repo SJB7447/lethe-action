@@ -117,7 +117,8 @@ const GROUPS: { title: string; expanded: boolean; items: Range[] }[] = [
       ['enemyLungeSpeed', '적 돌진 속도', 100, 1200, 10],
       ['enemyAttackCooldown', '적 공격 간격', 0.3, 5, 0.1],
       ['enemySlowWhileOpen', '조각 열린 적 속도', 0, 1, 0.05],
-      ['respawnDelay', '적 재생성 시간', 0.5, 10, 0.5],
+      ['respawnDelay', '적 재생성 시간(실험실)', 0.5, 10, 0.5],
+      ['deathRespawnDelay', '사망 후 재시작 시간', 0.2, 4, 0.1],
       ['gaugePerStrike', '타격당 게이지', 0, 50, 1],
       ['gaugePerNeedle', '바늘당 게이지', 0, 20, 1],
       ['shake', '화면 흔들림', 0, 24, 0.5],
@@ -191,7 +192,7 @@ export function initTuningPanel(bus: EventBus, onRespawn: () => void): Pane {
     pane.refresh();
     bus.emit('mode:change', { assist: tuning.assist });
   });
-  io.addButton({ title: '방 초기화 (R)' }).on('click', onRespawn);
+  io.addButton({ title: '다시 시작 (R)' }).on('click', onRespawn);
 
   pane.on('change', () => saveTuning());
   bus.on('mode:change', () => pane.refresh());

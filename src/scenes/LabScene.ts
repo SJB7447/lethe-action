@@ -12,6 +12,7 @@ import type { EventBus } from '../core/events';
 import type { Input } from '../core/input';
 import { tuning as T } from '../core/tuning';
 import { cx, cy } from '../game/physics';
+import type { StageDef } from '../game/room';
 import { GAUGE_MAX, Sim } from '../game/sim';
 import { HitFx } from './hitFx';
 import { placeholderArt } from './placeholderArt';
@@ -40,10 +41,15 @@ export class LabScene extends Phaser.Scene {
   private camY = 0;
   private realTime = 0;
   private fx!: HitFx;
+  private snapCamera = true;
+  private roomLabel!: Phaser.GameObjects.Text;
+  private noticeLabel!: Phaser.GameObjects.Text;
+  private roomLabelTimer = 0;
 
   constructor(
     private bus: EventBus,
     private input_: Input,
+    private stage: StageDef | null = null,
   ) {
     super('lab');
   }
@@ -59,12 +65,33 @@ export class LabScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.sim = new Sim(this.bus, this.input_);
+    this.sim = new Sim(this.bus, this.input_, this.stage);
     for (const layer of ART_LAYERS) {
       this.layers[layer] = this.add.graphics().setDepth(layerDepth(layer));
     }
     this.debugG = this.add.graphics().setDepth(DEBUG_DEPTH);
     this.fx = new HitFx(this, this.bus, () => this.sim);
+
+    // 임시 글자 (Antigravity HUD가 room:enter / stage:clear로 대체할 때까지)
+    const style = { fontFamily: 'system-ui, sans-serif', color: '#d8dcf0' };
+    this.roomLabel = this.add.text(this.scale.width / 2, 92, '', { ...style, fontSize: '20px' }).setOrigin(0.5).setScrollFactor(0).setDepth(950).setAlpha(0);
+    this.noticeLabel = this.add.text(this.scale.width / 2, this.scale.height / 2, '', { ...style, fontSize: '22px', align: 'center' }).setOrigin(0.5).setScrollFactor(0).setDepth(950);
+    this.bus.on('room:enter', ({ name }) => {
+      this.snapCamera = true;
+      this.roomLabel.setText(name);
+      this.roomLabelTimer = 2;
+    });
+    this.bus.on('stage:clear', (s) => {
+      this.noticeLabel.setText(
+        `스테이지 끝 — 보스·컷신은 준비 중\n\n시간 ${s.time.toFixed(1)}초 · 최대 연쇄 ${s.maxCombo} · 퍼펙트 ${s.perfects} · 발각 ${s.spotted} · 사망 ${s.deaths}\n\nR: 처음부터`,
+      );
+    });
+    this.bus.on('room:reset', () => this.noticeLabel.setText(''));
+    // 시작 방은 이 구독보다 먼저 불러왔으므로 직접 표시
+    if (this.sim.mode === 'stage') {
+      this.roomLabel.setText(this.sim.room.name);
+      this.roomLabelTimer = 2;
+    }
     try {
       this.art.init?.({ scene: this, layers: this.layers });
     } catch (err) {
@@ -93,6 +120,8 @@ export class LabScene extends Phaser.Scene {
     this.input_.endFrame();
     this.fx.update(realDt);
     this.updateCamera(realDt);
+    this.roomLabelTimer = Math.max(0, this.roomLabelTimer - realDt);
+    this.roomLabel.setAlpha(Math.min(1, this.roomLabelTimer));
     // 이번 프레임의 확대·밀림을 카메라 행렬·worldView에 바로 반영한 뒤,
     // 그 카메라 기준으로 마우스·화면 범위를 다시 읽고 시선 안내를 갱신합니다.
     // → 그려지는 시선 원뿔과 다음 프레임의 판정이 모두 이 화면을 기준으로 합니다.
@@ -120,7 +149,8 @@ export class LabScene extends Phaser.Scene {
     const lookAhead = Math.max(-140, Math.min(140, p.vx * 0.18));
     const tx = cx(p) + lookAhead - w / 2;
     const ty = cy(p) - h * 0.55;
-    const k = 1 - Math.exp(-8 * dt);
+    const k = this.snapCamera ? 1 : 1 - Math.exp(-8 * dt); // 방이 바뀌면 바로 이동
+    this.snapCamera = false;
     this.camX += (tx - this.camX) * k;
     this.camY += (ty - this.camY) * k;
     this.camX = Math.max(0, Math.min(this.sim.world.width - w, this.camX));
@@ -153,6 +183,16 @@ export class LabScene extends Phaser.Scene {
       gaugeMax: GAUGE_MAX,
       diveTimer: sim.diveTimer,
       perfectMode: sim.perfectMode,
+      stage: {
+        mode: sim.mode,
+        roomId: sim.room.id,
+        roomName: sim.room.name,
+        exits: sim.room.exits ?? [],
+        checkpoints: (sim.room.checkpoints ?? []).map((c) => ({ ...c, active: sim.checkpoint.id === c.id })),
+        goal: sim.room.goal ?? null,
+        deathTimer: sim.deathTimer,
+        cleared: sim.cleared,
+      },
       hitstop: sim.hitstop,
       timeScale: sim.timeScale,
       tuning: T,

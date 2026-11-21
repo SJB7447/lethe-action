@@ -147,6 +147,17 @@ export interface WorldView {
   readonly solids: readonly RectView[];
 }
 
+export interface StageView {
+  readonly mode: 'lab' | 'stage';
+  readonly roomId: string;
+  readonly roomName: string;
+  readonly exits: readonly RectView[]; // 다른 방으로 가는 출입구
+  readonly checkpoints: readonly (RectView & { readonly id: string; readonly active: boolean })[];
+  readonly goal: RectView | null; // 스테이지 끝 지점 (임시)
+  readonly deathTimer: number; // >0이면 사망 연출 중 (남은 시간)
+  readonly cleared: boolean;
+}
+
 export interface CameraView {
   readonly scrollX: number; // 화면 왼쪽 위의 월드 좌표
   readonly scrollY: number;
@@ -173,6 +184,7 @@ export interface ArtView {
   readonly gaugeMax: number;
   readonly diveTimer: number; // >0이면 고스트 다이빙 연출 중
   readonly perfectMode: boolean; // 퍼펙트 연쇄 중 (화면 안 모든 적 록온 가능)
+  readonly stage: StageView;
   readonly hitstop: number; // >0이면 히트스톱 중
   readonly timeScale: number;
   readonly tuning: Readonly<Tuning>;

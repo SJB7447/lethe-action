@@ -70,7 +70,8 @@ export const DEFAULT_TUNING = {
   enemyLungeSpeed: 560,
   enemyAttackCooldown: 1.8,
   enemySlowWhileOpen: 0.25, // 조각이 열린 적의 이동 속도 배수
-  respawnDelay: 3,
+  respawnDelay: 3, // (실험실) 적 재생성 시간
+  deathRespawnDelay: 1.2, // (스테이지) 사망 뒤 체크포인트에서 다시 시작할 때까지 (실시간 s)
 
   // ── 적 인식 (시선) ──
   enemyViewRange: 310, // 적 시선 거리

@@ -4,6 +4,7 @@ import { EventBus } from './core/events';
 import { Input } from './core/input';
 import { loadTuning, tuning } from './core/tuning';
 import { initTuningPanel } from './debug/tuningPanel';
+import { CHAPTER1 } from './game/stage/chapter1';
 import { LabScene } from './scenes/LabScene';
 import { initUI } from './ui';
 
@@ -19,7 +20,9 @@ const input = new Input();
 initUI(bus);
 initAudio(bus);
 
-const scene = new LabScene(bus, input);
+// 주소 ?mode=lab 이면 1단계 조작감 실험실, 아니면 챕터 1 스테이지
+const mode = new URLSearchParams(window.location.search).get('mode');
+const scene = new LabScene(bus, input, mode === 'lab' ? null : CHAPTER1);
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -31,5 +34,5 @@ new Phaser.Game({
   scene: [scene],
 });
 
-initTuningPanel(bus, () => scene.sim?.reset());
+initTuningPanel(bus, () => scene.sim?.restart());
 bus.emit('mode:change', { assist: tuning.assist });

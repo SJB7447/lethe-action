@@ -3,7 +3,7 @@ import type { Input } from '../core/input';
 import { tuning as T } from '../core/tuning';
 import { hears, inCone, inSight, sightFan, soundShape, type Vec } from './perception';
 import { approach, cx, cy, overlaps, World, type Body } from './physics';
-import { ROOM, type EnemySpawn } from './room';
+import { LAB_ROOM, type CheckpointDef, type EnemySpawn, type RoomDef, type StageDef } from './room';
 
 /**
  * 1단계 실험실 시뮬레이션. Phaser에 의존하지 않습니다.
@@ -87,6 +87,8 @@ export interface Enemy extends Body {
   fragmentMax: number;
   hurtFlash: number;
   bob: number;
+  /** 방 데이터에서 몇 번째 적인지 (쓰러진 적을 방 상태에 기록) */
+  spawnIndex: number;
   /** idle: 모름 / heard: 소리를 듣고 확인하러 감 / alert: 이단아를 봄 */
   awareness: Awareness;
   awareTimer: number;
@@ -135,13 +137,34 @@ export interface Ghost {
 }
 
 export const GAUGE_MAX = 100;
+
+/** 정산 화면용 기록 */
+export interface StageStats {
+  time: number; // 게임 시간 (s)
+  deaths: number;
+  maxCombo: number;
+  perfects: number; // 퍼펙트 타격 수
+  spotted: number; // 적에게 발각된 횟수 (sight 알림)
+}
 const FIXED_DT = 1 / 120;
 const SOUND_RAYS = 96; // 소리 모양 정밀도 (판정도 이 모양을 씀)
 const PLAYER_W = 22;
 const PLAYER_H = 40;
 
 export class Sim {
-  readonly world = new World(ROOM.width, ROOM.height);
+  readonly world = new World(LAB_ROOM.width, LAB_ROOM.height);
+  /** lab: 1단계 실험실 (자동 회복·적 재생성) / stage: 스테이지 (방 이동·체크포인트·사망) */
+  readonly mode: 'lab' | 'stage';
+  room: RoomDef = LAB_ROOM;
+  /** 사망·재시작 때 돌아갈 곳 */
+  checkpoint: { id: string; room: string; entry: string } = { id: 'start', room: 'lab', entry: 'start' };
+  /** >0이면 사망 연출 중 (남은 시간, 실시간) */
+  deathTimer = 0;
+  /** 스테이지 끝에 도착함 */
+  cleared = false;
+  stats: StageStats = { time: 0, deaths: 0, maxCombo: 0, perfects: 0, spotted: 0 };
+  /** 방마다 쓰러뜨린 적 (사망 전까지 유지) */
+  private killed = new Map<string, Set<number>>();
   player!: Player;
   enemies: Enemy[] = [];
   needles: Needle[] = [];
@@ -176,47 +199,98 @@ export class Sim {
   constructor(
     private bus: EventBus,
     private input: Input,
+    private stage: StageDef | null = null,
   ) {
-    this.world.solids.push(...ROOM.solids);
+    this.mode = stage ? 'stage' : 'lab';
     this.reset();
   }
 
+  /** 처음부터 다시 (실험실: 방 초기화 / 스테이지: 첫 방부터, 기록도 처음부터) */
   reset(): void {
-    const s = ROOM.playerSpawn;
-    this.player = {
-      x: s.x, y: s.y, w: PLAYER_W, h: PLAYER_H, vx: 0, vy: 0, onGround: false, wallDir: 0,
-      mode: 'normal', facing: 1, hp: 5, maxHp: 5, invuln: 0, coyote: 0, jumpBuf: 0, jumping: false,
-      wallLock: 0, dashTimer: 0, dashCd: 0, airDashes: 1, dashDir: { x: 1, y: 0 }, needleCd: 0,
-      attackBuf: 0, dodgeBonus: 0, strikeTarget: null, strikeTimer: 0, hurtFlash: 0,
-      gaze: 0, gazeActive: false, eyeX: 0, eyeY: 0, gazeFan: [], stepTimer: 0, strikePerfect: false,
-      attackPressTime: -Infinity, pressReal: -Infinity, prevFreePressReal: -Infinity, lastFreePressReal: -Infinity,
-    };
-    this.enemies = ROOM.enemies.map((sp) => this.makeEnemy(sp));
-    this.needles = [];
-    this.particles = [];
-    this.ghosts = [];
-    this.sounds = [];
-    if (this.perfectMode) {
-      this.perfectMode = false;
-      this.bus.emit('perfect:end', {});
-    }
+    const start = this.stage ? this.stage.start : { room: 'lab', entry: 'start' };
+    this.checkpoint = { id: 'start', room: start.room, entry: start.entry };
+    this.killed.clear();
+    this.stats = { time: 0, deaths: 0, maxCombo: 0, perfects: 0, spotted: 0 };
+    this.cleared = false;
+    this.deathTimer = 0;
+    this.endDive();
+    this.player = this.makePlayer();
     this.gauge = 0;
-    this.combo = 0;
-    this.chain = 0;
-    this.diveTimer = 0;
-    this.timeScale = 1;
+    this.loadRoom(start.room, start.entry);
     this.bus.emit('room:reset', {});
     this.bus.emit('gauge:change', { value: 0, max: GAUGE_MAX });
     this.bus.emit('combo:change', { count: 0 });
     this.bus.emit('player:hp', { hp: this.player.hp, maxHp: this.player.maxHp });
   }
 
-  private makeEnemy(sp: EnemySpawn): Enemy {
+  /** R 키·튜닝 패널: 실험실은 방 초기화, 스테이지는 마지막 체크포인트에서 다시 시작 */
+  restart(): void {
+    if (this.mode === 'lab' || this.cleared) this.reset();
+    else this.respawn();
+  }
+
+  private findRoom(id: string): RoomDef {
+    if (!this.stage) return LAB_ROOM;
+    const r = this.stage.rooms.find((x) => x.id === id);
+    if (!r) throw new Error(`방 없음: ${id}`);
+    return r;
+  }
+
+  /** 방을 불러오고 이단아를 입구에 둡니다. 체력·게이지는 유지, 연쇄는 끊깁니다. */
+  private loadRoom(roomId: string, entry: string): void {
+    const room = this.findRoom(roomId);
+    this.endDive(); // 방이 바뀌면 진행 중인 다이빙 연출도 끝냄
+    this.room = room;
+    this.world.load(room.width, room.height, room.solids);
+    const dead = this.killed.get(room.id) ?? new Set<number>();
+    this.enemies = room.enemies.map((sp, i) => ({ sp, i })).filter(({ i }) => !dead.has(i)).map(({ sp, i }) => this.makeEnemy(sp, i));
+    this.needles = [];
+    this.particles = [];
+    this.ghosts = [];
+    this.sounds = [];
+    if (this.combo > 0 || this.perfectMode) this.endCombo();
+    const pos = room.entries[entry] ?? room.entries.start ?? Object.values(room.entries)[0];
+    const p = this.player;
+    p.x = pos.x - p.w / 2;
+    p.y = pos.y - p.h;
+    p.vy = Math.min(p.vy, 0);
+    p.mode = 'normal';
+    p.strikeTarget = null;
+    this.world.depenetrate(p);
+    this.wasGrounded = true;
+    if (this.mode === 'stage') this.bus.emit('room:enter', { roomId: room.id, name: room.name });
+  }
+
+  /** 사망 또는 R: 마지막 체크포인트에서 다시. 쓰러뜨린 적은 모두 돌아옵니다. */
+  private respawn(): void {
+    const gauge = this.gauge;
+    this.killed.clear();
+    this.deathTimer = 0;
+    this.endDive();
+    this.player = this.makePlayer();
+    this.gauge = gauge;
+    this.loadRoom(this.checkpoint.room, this.checkpoint.entry);
+    this.bus.emit('player:respawn', {});
+    this.bus.emit('player:hp', { hp: this.player.hp, maxHp: this.player.maxHp });
+  }
+
+  private makePlayer(): Player {
+    return {
+      x: 0, y: 0, w: PLAYER_W, h: PLAYER_H, vx: 0, vy: 0, onGround: false, wallDir: 0,
+      mode: 'normal', facing: 1, hp: 5, maxHp: 5, invuln: 0, coyote: 0, jumpBuf: 0, jumping: false,
+      wallLock: 0, dashTimer: 0, dashCd: 0, airDashes: 1, dashDir: { x: 1, y: 0 }, needleCd: 0,
+      attackBuf: 0, dodgeBonus: 0, strikeTarget: null, strikeTimer: 0, hurtFlash: 0,
+      gaze: 0, gazeActive: false, eyeX: 0, eyeY: 0, gazeFan: [], stepTimer: 0, strikePerfect: false,
+      attackPressTime: -Infinity, pressReal: -Infinity, prevFreePressReal: -Infinity, lastFreePressReal: -Infinity,
+    };
+  }
+
+  private makeEnemy(sp: EnemySpawn, spawnIndex: number): Enemy {
     const hp = sp.kind === 'solid' ? 4 : 2;
     return {
       id: this.nextId++, spawn: sp, kind: sp.kind, flying: sp.flying,
       x: sp.x, y: sp.y, w: 30, h: sp.flying ? 30 : 44, vx: 0, vy: 0, onGround: false, wallDir: 0,
-      hp, maxHp: hp, state: 'patrol', timer: 0, dir: 1, attackCd: 1, lungeDir: { x: 0, y: 0 },
+      hp, maxHp: hp, state: 'patrol', timer: 0, dir: sp.dir ?? 1, attackCd: 1, lungeDir: { x: 0, y: 0 }, spawnIndex,
       counter: false, lockProgress: 0, fragment: 0, fragmentMax: 1, hurtFlash: 0, bob: Math.random() * 6,
       awareness: 'idle', awareTimer: 0, heardX: 0, heardY: 0, markTimer: 0, markKind: 'sound',
       eyeX: 0, eyeY: 0, viewFan: [], perfectTimer: 0, openedAt: -Infinity,
@@ -241,7 +315,18 @@ export class Sim {
   private advance(realDt: number): void {
     this.realClock += realDt;
     const p = this.player;
-    if (this.input.consume('reset')) this.reset();
+    if (this.input.consume('reset')) this.restart();
+    // 사망 연출 중: 조작 없이 잠시 멈췄다가 체크포인트에서 다시 시작
+    if (this.deathTimer > 0) {
+      this.deathTimer -= realDt;
+      this.decayFx(realDt);
+      if (this.deathTimer <= 0) this.respawn();
+      return;
+    }
+    if (this.cleared) {
+      this.decayFx(realDt);
+      return;
+    }
     if (this.input.consume('assist')) {
       T.assist = !T.assist;
       this.bus.emit('mode:change', { assist: T.assist });
@@ -273,7 +358,7 @@ export class Sim {
       this.step(FIXED_DT);
       this.accumulator -= FIXED_DT;
       steps++;
-      if (this.hitstop > 0) {
+      if (this.hitstop > 0 || this.cleared || this.deathTimer > 0) {
         this.accumulator = 0;
         break;
       }
@@ -287,10 +372,12 @@ export class Sim {
 
   private step(dt: number): void {
     this.time += dt;
+    this.stats.time += dt;
     const p = this.player;
     this.updateGaze();
     this.updatePlayer(dt);
     this.updateGaze(); // 이번 스텝의 입력·이동으로 바뀐 몸 방향·눈 위치를 록온에 반영
+    if (this.mode === 'stage' && this.checkStageTriggers()) return; // 방이 바뀌었거나 끝에 도착
     for (const e of this.enemies) this.updateEnemy(e, dt);
     this.updateLock(dt);
     this.updateNeedles(dt);
@@ -713,6 +800,8 @@ export class Sim {
       }
     }
     this.bus.emit('combo:change', { count: this.combo });
+    this.stats.maxCombo = Math.max(this.stats.maxCombo, this.combo);
+    if (perfect) this.stats.perfects++;
     this.addGauge(T.gaugePerStrike);
 
     this.hitstop = T.hitstop;
@@ -768,8 +857,8 @@ export class Sim {
 
     if (e.state === 'down') {
       e.timer -= dt;
-      if (e.timer <= 0 && T.autoRespawn) {
-        Object.assign(e, this.makeEnemy(e.spawn), { id: e.id });
+      if (e.timer <= 0 && T.autoRespawn && this.mode === 'lab') {
+        Object.assign(e, this.makeEnemy(e.spawn, e.spawnIndex), { id: e.id });
       }
       return;
     }
@@ -877,6 +966,16 @@ export class Sim {
       this.burst(cx(p), cy(p), 10, 0xff5470, 260);
       // player:hurt는 실제 피격에만 보냅니다. hp는 피해 직후 값(0일 수 있음)입니다.
       this.bus.emit('player:hurt', { hp: Math.max(0, p.hp), maxHp: p.maxHp });
+      if (p.hp <= 0 && this.mode === 'stage') {
+        // 스테이지: 사망 → 잠시 뒤 체크포인트에서 다시
+        p.hp = 0;
+        this.deathTimer = T.deathRespawnDelay;
+        this.stats.deaths++;
+        this.bus.emit('player:hp', { hp: 0, maxHp: p.maxHp });
+        this.bus.emit('player:death', {});
+        if (this.combo > 0 || this.perfectMode) this.endCombo();
+        break;
+      }
       if (p.hp <= 0) p.hp = p.maxHp; // 실험실이므로 바로 회복
       this.bus.emit('player:hp', { hp: p.hp, maxHp: p.maxHp });
       if (this.combo > 0) this.endCombo();
@@ -885,6 +984,11 @@ export class Sim {
   }
 
   private downEnemy(e: Enemy): void {
+    if (this.mode === 'stage') {
+      const set = this.killed.get(this.room.id) ?? new Set<number>();
+      set.add(e.spawnIndex);
+      this.killed.set(this.room.id, set);
+    }
     e.state = 'down';
     e.timer = T.respawnDelay;
     e.fragment = 0;
@@ -902,6 +1006,14 @@ export class Sim {
     this.gauge = Math.min(GAUGE_MAX, this.gauge + v);
     if (this.gauge !== before) this.bus.emit('gauge:change', { value: this.gauge, max: GAUGE_MAX });
     if (before < GAUGE_MAX && this.gauge >= GAUGE_MAX) this.bus.emit('dive:ready', {});
+  }
+
+  /** 진행 중인 고스트 다이빙을 끝냅니다 (상태와 dive:end를 함께 정리). */
+  private endDive(): void {
+    if (this.diveTimer <= 0) return;
+    this.diveTimer = 0;
+    this.timeScale = 1;
+    this.bus.emit('dive:end', {});
   }
 
   private tryDive(): void {
@@ -931,6 +1043,7 @@ export class Sim {
       this.hitstop = 0.12;
       this.timeScale = 1;
       this.combo += count;
+      this.stats.maxCombo = Math.max(this.stats.maxCombo, this.combo);
       this.comboTimer = T.comboTimeout;
       this.emitSound(cx(this.player), cy(this.player), T.soundDive, 'dive');
       this.bus.emit('dive:impact', { count });
@@ -938,13 +1051,46 @@ export class Sim {
       this.bus.emit('combo:change', { count: this.combo });
     }
     if (this.diveTimer <= 0) {
-      this.diveTimer = 0;
-      this.timeScale = 1;
-      this.bus.emit('dive:end', {});
+      this.diveTimer = 0.0001; // endDive가 끝내도록
+      this.endDive();
     }
   }
 
   // ───────────────────────── 시선 · 인식 · 소리 ─────────────────────────
+
+  /** 출입구·체크포인트·끝 지점. 방이 바뀌었거나 끝에 도착했으면 true */
+  private checkStageTriggers(): boolean {
+    const p = this.player;
+    if (p.mode === 'strike') return false; // 파고드는 중에는 방을 넘어가지 않음
+    const px = cx(p);
+    const py = cy(p);
+    const inside = (r: { x: number; y: number; w: number; h: number }) => px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+    for (const cp of this.room.checkpoints ?? []) {
+      if (overlaps(p, cp) && this.checkpoint.id !== cp.id) this.setCheckpoint(cp);
+    }
+    if (this.room.goal && inside(this.room.goal)) {
+      this.cleared = true;
+      this.endDive();
+      if (this.combo > 0 || this.perfectMode) this.endCombo();
+      this.bus.emit('stage:clear', { ...this.stats });
+      return true;
+    }
+    for (const ex of this.room.exits ?? []) {
+      if (inside(ex)) {
+        this.loadRoom(ex.to, ex.entry);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private setCheckpoint(cp: CheckpointDef): void {
+    this.checkpoint = { id: cp.id, room: this.room.id, entry: cp.entry };
+    // 체크포인트에서 체력 회복
+    this.player.hp = this.player.maxHp;
+    this.bus.emit('checkpoint', { id: cp.id, roomId: this.room.id });
+    this.bus.emit('player:hp', { hp: this.player.hp, maxHp: this.player.maxHp });
+  }
 
   /** 적이 화면 안에 있는지 (화면 정보가 없으면 참) */
   private onScreen(e: Enemy): boolean {
@@ -1038,6 +1184,7 @@ export class Sim {
   }
 
   private notice(e: Enemy, cause: 'sound' | 'sight'): void {
+    if (cause === 'sight') this.stats.spotted++;
     e.markTimer = T.noticeMarkTime;
     e.markKind = cause;
     this.bus.emit('enemy:notice', { enemyId: e.id, cause });
