@@ -103,7 +103,11 @@ export const placeholderArt: Record<ArtLayer, LayerPainter> = {
   },
 
   enemies(g, v) {
-    for (const e of v.enemies) drawEnemyBody(g, e, v);
+    if (v.boss) drawBoss(g, v);
+    for (const e of v.enemies) {
+      if (e.bossPart) drawBossPart(g, e);
+      else drawEnemyBody(g, e, v);
+    }
   },
 
   afterimages(g, v) {
@@ -185,6 +189,19 @@ export const placeholderArt: Record<ArtLayer, LayerPainter> = {
 
   screen(g, v) {
     const cam = v.camera;
+    // 보스 체력 (임시: Antigravity HUD가 boss:hp로 대체)
+    if (v.boss && v.boss.state !== 'defeated') {
+      const b = v.boss;
+      const w = 420;
+      const x = cam.scrollX + (cam.width - w) / 2;
+      const y = cam.scrollY + cam.height - 34;
+      g.fillStyle(C.bg, 0.8);
+      g.fillRect(x - 4, y - 4, w + 8, 16);
+      g.fillStyle(b.phase === 2 ? C.cracked : C.amber, 0.95);
+      g.fillRect(x, y, (w * b.hp) / b.maxHp, 8);
+      g.lineStyle(1, 0xffffff, 0.4);
+      g.lineBetween(x + w / 2, y - 2, x + w / 2, y + 10); // 페이즈 2 경계
+    }
     if (v.diveTimer > 0) {
       g.fillStyle(0x2a1a4a, 0.35);
       g.fillRect(cam.scrollX, cam.scrollY, cam.width, cam.height);
@@ -226,6 +243,64 @@ function drawEnemyBody(g: Phaser.GameObjects.Graphics, e: EnemyView, v: ArtView)
     g.fillStyle(0xffffff, 0.8);
     g.fillRect(e.x, e.y - 8, (e.w * e.hp) / e.maxHp, 3);
   }
+}
+
+/** 보스 몸체 + 예고 + 기억 소거 파동 (임시 그림) */
+function drawBoss(g: Phaser.GameObjects.Graphics, v: ArtView): void {
+  const b = v.boss;
+  if (!b) return;
+  // 파동: 판정 두께 그대로
+  if (b.waveActive) {
+    const half = v.tuning.bossWaveWidth / 2;
+    g.lineStyle(v.tuning.bossWaveWidth, C.cracked, 0.18);
+    g.strokeCircle(b.waveX, b.waveY, b.waveRadius);
+    g.lineStyle(2, 0xffffff, 0.8);
+    g.strokeCircle(b.waveX, b.waveY, b.waveRadius + half);
+    g.strokeCircle(b.waveX, b.waveY, Math.max(0, b.waveRadius - half));
+  }
+  const defeated = b.state === 'defeated';
+  let col = defeated ? 0x3a2a30 : b.phase === 2 ? 0x5a1c2a : 0x3c2030;
+  if (b.hurtFlash > 0) col = 0xffffff;
+  g.fillStyle(col, defeated ? 0.5 : 1);
+  g.fillRect(b.x, b.y, b.w, b.h);
+  g.lineStyle(2, b.state === 'down' ? 0x6a6a80 : C.cracked, 0.9);
+  g.strokeRect(b.x, b.y, b.w, b.h);
+  // 눈 (보는 방향)
+  g.fillStyle(b.state === 'down' ? 0x444455 : 0xffffff, 1);
+  g.fillRect(b.x + b.w / 2 + b.facing * 22 - 10, b.y + 26, 20, 6);
+  // 예고: 파동은 몸이 붉게 맥동, 돌진은 앞쪽 화살표
+  if (b.state === 'telegraph') {
+    const blink = Math.floor(v.realTime * 14) % 2 === 0;
+    if (b.pattern === 'wave') {
+      g.lineStyle(4, C.cracked, blink ? 1 : 0.4);
+      g.strokeCircle(b.x + b.w / 2, b.y + b.h / 2, 30 + (1 - b.timer / Math.max(0.01, v.tuning.bossWaveTelegraph)) * 90);
+    } else {
+      const fx = b.facing > 0 ? b.x + b.w + 10 : b.x - 10;
+      const cy0 = b.y + b.h - 40;
+      g.fillStyle(C.telegraph, blink ? 0.95 : 0.4);
+      g.fillTriangle(fx, cy0 - 26, fx, cy0 + 26, fx + b.facing * 50, cy0);
+    }
+  }
+  if (b.state === 'down') {
+    g.fillStyle(0xffffff, 0.08 + 0.05 * Math.sin(v.realTime * 6));
+    g.fillRect(b.x - 6, b.y - 6, b.w + 12, b.h + 12);
+  }
+}
+
+/** 보스 균열 소켓 (조각·록온은 fragments 층이 그림) */
+function drawBossPart(g: Phaser.GameObjects.Graphics, e: EnemyView): void {
+  if (e.state === 'down') {
+    if (e.bossPart === 'weak') {
+      g.lineStyle(1, 0x6a6a80, 0.6);
+      g.strokeCircle(e.x + e.w / 2, e.y + e.h / 2, 9); // 끊긴 자리
+    }
+    return;
+  }
+  const r = e.bossPart === 'core' ? 16 : 11;
+  g.fillStyle(e.hurtFlash > 0 ? 0xffffff : C.cracked, 1);
+  g.fillCircle(e.x + e.w / 2, e.y + e.h / 2, r);
+  g.lineStyle(2, 0xfff1cf, 0.9);
+  g.strokeCircle(e.x + e.w / 2, e.y + e.h / 2, r);
 }
 
 /** 이단아 얼굴: 눈 두 개, 눈동자가 시선 방향을 봅니다. */

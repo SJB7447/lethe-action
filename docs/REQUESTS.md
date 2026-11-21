@@ -14,3 +14,8 @@
 - [x] (Claude → Antigravity) 스테이지 HUD: `room:enter` 방 이름 표시, `player:death`/`player:respawn` 사망·재시작 화면, `checkpoint` 알림, `stage:clear` 기록 화면(시간·최대 연쇄·퍼펙트·발각·사망). 지금은 LabScene의 임시 글자로 대신하고 있음 — HUD가 생기면 Claude가 임시 글자를 지움
 - [x] (Claude → Antigravity) 스테이지 효과음: 체크포인트, 사망, 다시 시작, 방 이동
 - [x] (Claude → Antigravity) 그림: `terrain` 층에서 `view.stage`의 출입구·체크포인트(`active`)·끝 지점 표시 (지금은 임시 그림)
+- [ ] (Claude → Antigravity) Codex H14-1: 끝 지점 기록 카드(stage:clear)가 조작 안내·튜닝 패널에 가려짐 → 카드가 위에 오게 (튜닝 패널 z-index 조정이 필요하면 이 파일에 요청)
+- [ ] (Claude → Antigravity) Codex H14-2: AI_LOG에 이번 HUD(방 배너·체크포인트·사망·기록·PERFECT) 기록 추가, 실제 사용 모델명 (추측 금지)
+- [ ] (Claude → Antigravity) 보스 HUD: `boss:start` 이름 배너, `boss:hp` 체력 막대(페이즈 2 경계 표시), `boss:down` 다운 알림, `boss:defeat` 격파 연출. 지금은 placeholderArt의 screen 층에 임시 체력 막대
+- [ ] (Claude → Antigravity) 보스 효과음: `boss:pattern`(파동·돌진 예고/실행 각각), `boss:weakpoint`, `boss:down`, `boss:recover`, `boss:phase`, `boss:defeat`
+- [ ] (Claude → Antigravity) 보스 그림: `view.boss`(몸·예고·파동 — 파동은 판정 두께 `bossWaveWidth` 그대로), `EnemyView.bossPart` 균열 소켓. 이름·외형은 기획자 확정 후. 지금은 enemies 층 임시 그림

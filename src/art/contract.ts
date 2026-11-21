@@ -103,6 +103,7 @@ export interface EnemyView extends RectView {
   readonly eyeY: number;
   readonly viewFan: readonly PointView[]; // 적 시선 원뿔 (벽에서 잘림). 첫 점은 눈. 쓰러지면 빈 배열
   readonly perfectTimer: number; // >0이면 퍼펙트 판정 시간 (조각이 열린 직후). 이 동안 조각이 달라 보여야 함
+  readonly bossPart: 'weak' | 'core' | null; // 보스 몸의 균열이면 역할 (일반 적 몸체로 그리지 말 것)
 }
 
 export type SoundKind = 'step' | 'jump' | 'land' | 'dash' | 'needle' | 'needleHit' | 'strike' | 'dive';
@@ -147,6 +148,23 @@ export interface WorldView {
   readonly solids: readonly RectView[];
 }
 
+export interface BossView extends RectView {
+  readonly name: string;
+  readonly hp: number;
+  readonly maxHp: number;
+  readonly phase: 1 | 2;
+  readonly state: 'intro' | 'idle' | 'telegraph' | 'active' | 'recover' | 'down' | 'defeated';
+  readonly timer: number; // 현재 상태의 남은 시간 (telegraph면 예고 남은 시간)
+  readonly pattern: 'wave' | 'charge';
+  readonly facing: -1 | 1;
+  readonly hurtFlash: number;
+  /** 기억 소거 파동 (판정 범위: 반지름 ± tuning.bossWaveWidth/2) */
+  readonly waveActive: boolean;
+  readonly waveX: number;
+  readonly waveY: number;
+  readonly waveRadius: number;
+}
+
 export interface StageView {
   readonly mode: 'lab' | 'stage';
   readonly roomId: string;
@@ -185,6 +203,7 @@ export interface ArtView {
   readonly diveTimer: number; // >0이면 고스트 다이빙 연출 중
   readonly perfectMode: boolean; // 퍼펙트 연쇄 중 (화면 안 모든 적 록온 가능)
   readonly stage: StageView;
+  readonly boss: BossView | null;
   readonly hitstop: number; // >0이면 히트스톱 중
   readonly timeScale: number;
   readonly tuning: Readonly<Tuning>;

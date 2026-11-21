@@ -100,6 +100,29 @@ export const DEFAULT_TUNING = {
   strikeShakeGrowth: 1.5, // 연쇄가 이어질수록 흔들림 증가
   diveSlowmo: 0.15,
 
+  // ── 보스 (챕터 1 균열형) ──
+  bossMaxHp: 16,
+  bossWeakDamage: 1, // 약점 균열 한 곳
+  bossPerfectDamage: 2, // 약점 균열 퍼펙트
+  bossCoreDamage: 4, // 다운 중 핵심 균열 (퍼펙트면 ×1.5)
+  bossDiveDamage: 5, // 다운 중 고스트 다이빙
+  bossDownTime: 4, // 다운 시간 = 핵심 균열이 열려 있는 시간
+  bossIntroTime: 1.5,
+  bossMoveSpeed: 70,
+  bossPatternGap: 2.2, // 패턴 사이 쉬는 시간 (페이즈 1)
+  bossPatternGap2: 1.3, // (페이즈 2)
+  bossWaveTelegraph: 0.9, // 기억 소거 파동 예고
+  bossWaveSpeed: 520, // 파동이 퍼지는 속도
+  bossPhase2WaveBoost: 1.35,
+  bossWaveWidth: 44, // 파동 고리 두께 (이 안의 조각이 닫힘)
+  bossWaveMaxRadius: 1100,
+  bossWaveRecover: 0.5,
+  bossChargeTelegraph: 0.7, // 돌진 예고
+  bossChargeSpeed: 900,
+  bossChargeMaxTime: 1.6,
+  bossChargeRecover: 1.0, // 돌진 뒤 빈틈
+  bossDefeatDelay: 2.2, // 격파 연출 뒤 stage:clear까지
+
   // ── 타격 화면 효과 ──
   fxZoomPunch: 0.06, // 타격 순간 화면 확대 (1 + 값)
   fxKick: 12, // 파고든 방향으로 카메라가 밀리는 거리 (px)
