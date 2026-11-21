@@ -114,4 +114,36 @@ export function initAudio(bus: EventBus): void {
   bus.on('player:respawn', () => {
     sfx.play('respawn', { volume: 0.62 });
   });
+
+  bus.on('boss:pattern', ({ pattern, step }) => {
+    if (pattern === 'wave') {
+      sfx.play(step === 'telegraph' ? 'boss_wave_telegraph' : 'boss_wave_active', {
+        volume: step === 'telegraph' ? 0.56 : 0.84,
+      });
+    } else {
+      sfx.play(step === 'telegraph' ? 'boss_charge_telegraph' : 'boss_charge_active', {
+        volume: step === 'telegraph' ? 0.54 : 0.78,
+      });
+    }
+  });
+
+  bus.on('boss:weakpoint', ({ broken }) => {
+    sfx.play('boss_weakpoint', { volume: 0.78, rate: 1 + Math.max(0, broken - 1) * 0.08 });
+  });
+
+  bus.on('boss:down', () => {
+    sfx.play('boss_down', { volume: 0.9 });
+  });
+
+  bus.on('boss:recover', () => {
+    sfx.play('boss_recover', { volume: 0.66 });
+  });
+
+  bus.on('boss:phase', () => {
+    sfx.play('boss_phase', { volume: 0.86 });
+  });
+
+  bus.on('boss:defeat', () => {
+    sfx.play('boss_defeat', { volume: 0.94 });
+  });
 }

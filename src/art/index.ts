@@ -5,6 +5,7 @@
  */
 import type { ArtPainter } from './contract';
 import { drawAlertsLayer } from './alerts';
+import { drawEnemiesLayer } from './enemies';
 import { drawFragmentsLayer } from './fragments';
 import { drawPerceptionLayer } from './perception';
 import { drawPlayerLayer } from './player';
@@ -14,6 +15,7 @@ export function createArtPainter(): ArtPainter {
   return {
     terrain: drawTerrainLayer,
     perception: drawPerceptionLayer,
+    enemies: drawEnemiesLayer,
     player: drawPlayerLayer,
     alerts: drawAlertsLayer,
     fragments: drawFragmentsLayer,
