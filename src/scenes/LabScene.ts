@@ -86,7 +86,9 @@ export class LabScene extends Phaser.Scene {
     this.realTime += realDt;
     this.input_.poll();
     if (this.input_.consume('debug')) T.showDebug = !T.showDebug;
-    // 판정은 지금 화면에 보이는 카메라 기준 (지난 프레임 끝에 syncView로 읽은 마우스·화면 범위)
+    // 판정은 지금 화면에 보이는 카메라(지난 프레임에 그린 것) 기준, 마우스는 지금 위치.
+    // 시뮬레이션 전에 현재 포인터를 그 카메라로 변환합니다 (클릭한 순간의 조준으로 대상 선택).
+    this.syncView();
     this.sim.frame(realDt);
     this.input_.endFrame();
     this.fx.update(realDt);

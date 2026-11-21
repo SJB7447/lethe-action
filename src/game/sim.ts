@@ -45,9 +45,10 @@ export interface Player extends Body {
   strikePerfect: boolean;
   /** 마지막 공격 입력 시각 (게임 시간). "조각이 열린 뒤에 눌렀는가" 판정용 */
   attackPressTime: number;
-  /** 마지막 공격 입력과 그 직전 입력의 실제 시각. 연타 판정용 (히트스톱 중에도 흐르는 시계) */
+  /** 마지막 공격 입력의 실제 시각 (히트스톱 중에도 흐르는 시계) */
   pressReal: number;
-  prevPressReal: number;
+  /** 이번 입력 바로 전의 헛공격 시각 (파고들기에 쓰인 입력은 제외). 연타 판정용 */
+  prevFreePressReal: number;
   /** 파고들기를 시작하지 않은 마지막 공격 입력의 실제 시각 (헛클릭·바늘·남은 선입력) */
   lastFreePressReal: number;
 }
@@ -188,7 +189,7 @@ export class Sim {
       wallLock: 0, dashTimer: 0, dashCd: 0, airDashes: 1, dashDir: { x: 1, y: 0 }, needleCd: 0,
       attackBuf: 0, dodgeBonus: 0, strikeTarget: null, strikeTimer: 0, hurtFlash: 0,
       gaze: 0, gazeActive: false, eyeX: 0, eyeY: 0, gazeFan: [], stepTimer: 0, strikePerfect: false,
-      attackPressTime: -Infinity, pressReal: -Infinity, prevPressReal: -Infinity, lastFreePressReal: -Infinity,
+      attackPressTime: -Infinity, pressReal: -Infinity, prevFreePressReal: -Infinity, lastFreePressReal: -Infinity,
     };
     this.enemies = ROOM.enemies.map((sp) => this.makeEnemy(sp));
     this.needles = [];
@@ -254,7 +255,7 @@ export class Sim {
     if (this.input.consume('attack')) {
       p.attackBuf = T.attackBuffer;
       p.attackPressTime = this.time;
-      p.prevPressReal = p.pressReal;
+      p.prevFreePressReal = p.lastFreePressReal; // 직전 입력이 파고들기에 쓰였다면 -Infinity
       p.pressReal = this.realClock;
       p.lastFreePressReal = this.realClock; // 파고들기를 시작하면 beginStrike에서 지웁니다
     }
@@ -658,9 +659,9 @@ export class Sim {
     // 퍼펙트 조건:
     //  1) 퍼펙트 시간 안 (열리기 직전 헛공격이 있었으면 그 조각은 처음부터 퍼펙트 시간 0)
     //  2) 조각이 열린 뒤에 새로 누른 입력 (열리기 전 선입력은 일반 타격)
-    //  3) 바로 전 입력과의 간격이 연타 방지 시간 이상 (연타는 일반 타격)
+    //  3) 직전 헛공격과의 간격이 연타 방지 시간 이상 (파고들기에 쓰인 입력은 연타로 치지 않음)
     p.strikePerfect =
-      e.perfectTimer > 0 && p.attackPressTime >= e.openedAt && p.pressReal - p.prevPressReal >= T.perfectMashGuard;
+      e.perfectTimer > 0 && p.attackPressTime >= e.openedAt && p.pressReal - p.prevFreePressReal >= T.perfectMashGuard;
     p.lastFreePressReal = -Infinity; // 이 입력은 파고들기에 쓰였으므로 헛공격으로 치지 않음
     p.invuln = Math.max(p.invuln, 0.3);
     this.bus.emit('strike:start', { enemyId: e.id, chain: this.chain + 1 });
