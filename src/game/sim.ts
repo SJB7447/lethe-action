@@ -1,7 +1,7 @@
 import type { EventBus } from '../core/events';
 import type { Input } from '../core/input';
 import { tuning as T } from '../core/tuning';
-import { hears, inSight, sightFan, soundShape, type Vec } from './perception';
+import { hears, inCone, inSight, sightFan, soundShape, type Vec } from './perception';
 import { approach, cx, cy, overlaps, World, type Body } from './physics';
 import { ROOM, type EnemySpawn } from './room';
 
@@ -41,6 +41,16 @@ export interface Player extends Body {
   /** 시선 원뿔 모양 (벽에서 잘림). 첫 점은 눈 */
   gazeFan: Vec[];
   stepTimer: number;
+  /** 지금 파고드는 공격이 퍼펙트 시간 안에 시작됐는지 */
+  strikePerfect: boolean;
+  /** 마지막 공격 입력 시각 (게임 시간). "조각이 열린 뒤에 눌렀는가" 판정용 */
+  attackPressTime: number;
+  /** 마지막 공격 입력의 실제 시각 (히트스톱 중에도 흐르는 시계) */
+  pressReal: number;
+  /** 이번 입력 바로 전의 헛공격 시각 (파고들기에 쓰인 입력은 제외). 연타 판정용 */
+  prevFreePressReal: number;
+  /** 파고들기를 시작하지 않은 마지막 공격 입력의 실제 시각 (헛클릭·바늘·남은 선입력) */
+  lastFreePressReal: number;
 }
 
 export type Awareness = 'idle' | 'heard' | 'alert';
@@ -89,6 +99,10 @@ export interface Enemy extends Body {
   eyeY: number;
   /** 시선 원뿔 모양 (벽에서 잘림). 첫 점은 눈. 쓰러지면 빈 배열 */
   viewFan: Vec[];
+  /** >0이면 퍼펙트 판정 시간 (조각이 열린 직후, 남은 시간) */
+  perfectTimer: number;
+  /** 조각이 열린 시각 (게임 시간) */
+  openedAt: number;
 }
 
 export interface Needle {
@@ -136,6 +150,10 @@ export class Sim {
   sounds: Sound[] = [];
   /** 마우스가 가리키는 월드 좌표. LabScene이 매 프레임 넣어 줍니다. */
   aimWorld: Vec | null = null;
+  /** 화면에 보이는 월드 영역. LabScene이 매 프레임 넣어 줍니다 (퍼펙트 연쇄 대상 범위). */
+  viewRect: { x: number; y: number; w: number; h: number } | null = null;
+  /** 퍼펙트 연쇄 중: 화면 안의 모든 적을 벽·시선과 상관없이 록온 (연쇄가 끝나면 해제) */
+  perfectMode = false;
 
   gauge = 0;
   combo = 0;
@@ -150,6 +168,8 @@ export class Sim {
   private diveImpactDone = false;
   private ghostTimer = 0;
   private accumulator = 0;
+  /** 실제 경과 시간 (히트스톱 중에도 흐름). 입력 간격 판정용 */
+  private realClock = 0;
   private nextId = 1;
   private wasGrounded = true;
 
@@ -168,13 +188,18 @@ export class Sim {
       mode: 'normal', facing: 1, hp: 5, maxHp: 5, invuln: 0, coyote: 0, jumpBuf: 0, jumping: false,
       wallLock: 0, dashTimer: 0, dashCd: 0, airDashes: 1, dashDir: { x: 1, y: 0 }, needleCd: 0,
       attackBuf: 0, dodgeBonus: 0, strikeTarget: null, strikeTimer: 0, hurtFlash: 0,
-      gaze: 0, gazeActive: false, eyeX: 0, eyeY: 0, gazeFan: [], stepTimer: 0,
+      gaze: 0, gazeActive: false, eyeX: 0, eyeY: 0, gazeFan: [], stepTimer: 0, strikePerfect: false,
+      attackPressTime: -Infinity, pressReal: -Infinity, prevFreePressReal: -Infinity, lastFreePressReal: -Infinity,
     };
     this.enemies = ROOM.enemies.map((sp) => this.makeEnemy(sp));
     this.needles = [];
     this.particles = [];
     this.ghosts = [];
     this.sounds = [];
+    if (this.perfectMode) {
+      this.perfectMode = false;
+      this.bus.emit('perfect:end', {});
+    }
     this.gauge = 0;
     this.combo = 0;
     this.chain = 0;
@@ -194,7 +219,7 @@ export class Sim {
       hp, maxHp: hp, state: 'patrol', timer: 0, dir: 1, attackCd: 1, lungeDir: { x: 0, y: 0 },
       counter: false, lockProgress: 0, fragment: 0, fragmentMax: 1, hurtFlash: 0, bob: Math.random() * 6,
       awareness: 'idle', awareTimer: 0, heardX: 0, heardY: 0, markTimer: 0, markKind: 'sound',
-      eyeX: 0, eyeY: 0, viewFan: [],
+      eyeX: 0, eyeY: 0, viewFan: [], perfectTimer: 0, openedAt: -Infinity,
     };
   }
 
@@ -207,7 +232,14 @@ export class Sim {
     this.updateFans();
   }
 
+  /** 시뮬레이션은 진행하지 않고, 지금 aimWorld 기준으로 시선과 원뿔 그림만 다시 계산합니다. */
+  refreshGuides(): void {
+    this.updateGaze();
+    this.updateFans();
+  }
+
   private advance(realDt: number): void {
+    this.realClock += realDt;
     const p = this.player;
     if (this.input.consume('reset')) this.reset();
     if (this.input.consume('assist')) {
@@ -220,7 +252,13 @@ export class Sim {
     if (this.diveTimer > 0) this.updateDive(realDt);
 
     // 공격 선입력은 히트스톱 중에도 받아 둡니다.
-    if (this.input.consume('attack')) p.attackBuf = T.attackBuffer;
+    if (this.input.consume('attack')) {
+      p.attackBuf = T.attackBuffer;
+      p.attackPressTime = this.time;
+      p.prevFreePressReal = p.lastFreePressReal; // 직전 입력이 파고들기에 쓰였다면 -Infinity
+      p.pressReal = this.realClock;
+      p.lastFreePressReal = this.realClock; // 파고들기를 시작하면 beginStrike에서 지웁니다
+    }
 
     if (this.hitstop > 0) {
       this.hitstop -= realDt;
@@ -515,9 +553,18 @@ export class Sim {
     let candidates: Enemy[] = [];
     if (this.input.state.lockHeld || T.assist) {
       // 이단아의 시선 원뿔 안에 있고 벽에 가리지 않은 적만 록온됩니다.
+      // 연쇄가 이어지는 동안에는 벽을 무시합니다 (시선 원뿔 안이면 록온).
+      // 퍼펙트 연쇄 중에는 화면 안의 모든 적이 대상입니다 (벽·시선 무시).
+      const chaining = this.chainActive();
       candidates = this.enemies
         .filter(lockable)
-        .filter((e) => inSight(eye, p.gaze, halfAngle, T.lockRange, cx(e), cy(e), this.world.solids))
+        .filter((e) =>
+          this.perfectMode
+            ? this.onScreen(e)
+            : chaining
+              ? inCone(eye, p.gaze, halfAngle, T.lockRange, cx(e), cy(e))
+              : inSight(eye, p.gaze, halfAngle, T.lockRange, cx(e), cy(e), this.world.solids),
+        )
         .map((e) => ({ e, d: Math.hypot(cx(e) - px, cy(e) - py) }))
         .sort((a, b) => a.d - b.d)
         .slice(0, this.input.state.lockHeld ? T.maxLocks : 1)
@@ -527,8 +574,10 @@ export class Sim {
     for (const e of this.enemies) {
       if (e.fragment > 0) {
         e.fragment -= dt;
+        e.perfectTimer = Math.max(0, e.perfectTimer - dt);
         if (e.fragment <= 0) {
           e.fragment = 0;
+          e.perfectTimer = 0;
           this.onFragmentMissed(e);
         }
         continue;
@@ -553,6 +602,10 @@ export class Sim {
     const window = T.fragmentWindow * (T.assist ? T.assistWindowBonus : 1);
     e.fragment = window;
     e.fragmentMax = window;
+    e.openedAt = this.time;
+    // 열리기 직전에 연타(파고들기로 이어지지 않은 공격 입력)가 있었다면 이 조각은 퍼펙트 기회가 없습니다.
+    const mashed = this.realClock - this.player.lastFreePressReal < T.perfectMashGuard;
+    e.perfectTimer = mashed ? 0 : Math.min(window, T.perfectWindow * (T.assist ? T.assistWindowBonus : 1));
     this.bus.emit('fragment:open', { enemyId: e.id, window, chained });
   }
 
@@ -582,7 +635,8 @@ export class Sim {
       const dx = cx(e) - cx(p);
       const dy = cy(e) - cy(p);
       const d = Math.hypot(dx, dy);
-      if (d > T.lockRange * 1.3) continue;
+      // 평소엔 록온 거리 근처까지. 퍼펙트 연쇄 중엔 화면 안이면 거리와 상관없이
+      if (d > T.lockRange * 1.3 && !(this.perfectMode && this.onScreen(e))) continue;
       // 시선(없으면 입력 방향)과 같은 쪽 적을 우선
       let dirBonus = 0;
       if (p.gazeActive) dirBonus = ((dx * Math.cos(p.gaze) + dy * Math.sin(p.gaze)) / (d || 1)) * 120;
@@ -600,7 +654,15 @@ export class Sim {
     const p = this.player;
     p.mode = 'strike';
     p.strikeTarget = e;
-    p.strikeTimer = 0.6;
+    // 먼 대상(퍼펙트 연쇄)까지 도달할 수 있게 이동 시간을 거리에 맞춤
+    p.strikeTimer = Math.max(0.6, Math.hypot(cx(e) - cx(p), cy(e) - cy(p)) / T.chainSpeed + 0.2);
+    // 퍼펙트 조건:
+    //  1) 퍼펙트 시간 안 (열리기 직전 헛공격이 있었으면 그 조각은 처음부터 퍼펙트 시간 0)
+    //  2) 조각이 열린 뒤에 새로 누른 입력 (열리기 전 선입력은 일반 타격)
+    //  3) 직전 헛공격과의 간격이 연타 방지 시간 이상 (파고들기에 쓰인 입력은 연타로 치지 않음)
+    p.strikePerfect =
+      e.perfectTimer > 0 && p.attackPressTime >= e.openedAt && p.pressReal - p.prevFreePressReal >= T.perfectMashGuard;
+    p.lastFreePressReal = -Infinity; // 이 입력은 파고들기에 쓰였으므로 헛공격으로 치지 않음
     p.invuln = Math.max(p.invuln, 0.3);
     this.bus.emit('strike:start', { enemyId: e.id, chain: this.chain + 1 });
   }
@@ -638,9 +700,18 @@ export class Sim {
     this.chain++;
     this.combo++;
     this.comboTimer = T.comboTimeout;
+    const perfect = p.strikePerfect;
+    p.strikePerfect = false;
     e.fragment = 0;
     this.downEnemy(e);
-    this.bus.emit('strike:hit', { enemyId: e.id, chain: this.chain });
+    this.bus.emit('strike:hit', { enemyId: e.id, chain: this.chain, perfect });
+    if (perfect) {
+      this.addGauge(T.gaugePerfectBonus);
+      if (!this.perfectMode) {
+        this.perfectMode = true;
+        this.bus.emit('perfect:start', {});
+      }
+    }
     this.bus.emit('combo:change', { count: this.combo });
     this.addGauge(T.gaugePerStrike);
 
@@ -660,10 +731,15 @@ export class Sim {
     this.world.depenetrate(p);
 
     // 다음 적의 조각을 바로 엽니다.
+    // - 평소 연쇄: 연쇄 탐색 거리 안 + 이단아의 시선 원뿔 안 (벽은 무시)
+    // - 퍼펙트 연쇄: 화면 안의 가장 가까운 적 (거리·시선·벽 무시)
+    this.updateGaze();
+    const eye = this.playerEye();
+    const halfAngle = (T.gazeHalfAngle * Math.PI) / 180;
     const next = this.enemies
       .filter((o) => o !== e && o.kind === 'cracked' && o.state !== 'down' && o.fragment <= 0)
-      .map((o) => ({ o, d: Math.hypot(cx(o) - cx(p), cy(o) - cy(p)) }))
-      .filter(({ d }) => d <= T.chainSearchRadius)
+      .filter((o) => (this.perfectMode ? this.onScreen(o) : inCone(eye, p.gaze, halfAngle, T.chainSearchRadius, cx(o), cy(o))))
+      .map((o) => ({ o, d: Math.hypot(cx(o) - eye.x, cy(o) - eye.y) }))
       .sort((a, b) => a.d - b.d)[0];
     if (next) {
       next.o.lockProgress = 0;
@@ -672,6 +748,10 @@ export class Sim {
   }
 
   private endCombo(): void {
+    if (this.perfectMode) {
+      this.perfectMode = false;
+      this.bus.emit('perfect:end', {});
+    }
     if (this.combo > 0) this.bus.emit('combo:end', { total: this.combo });
     this.combo = 0;
     this.chain = 0;
@@ -808,6 +888,7 @@ export class Sim {
     e.state = 'down';
     e.timer = T.respawnDelay;
     e.fragment = 0;
+    e.perfectTimer = 0;
     e.lockProgress = 0;
     e.vx = 0;
     e.vy = 0;
@@ -865,6 +946,20 @@ export class Sim {
 
   // ───────────────────────── 시선 · 인식 · 소리 ─────────────────────────
 
+  /** 적이 화면 안에 있는지 (화면 정보가 없으면 참) */
+  private onScreen(e: Enemy): boolean {
+    const v = this.viewRect;
+    if (!v) return true;
+    const x = cx(e);
+    const y = cy(e);
+    return x >= v.x && x <= v.x + v.w && y >= v.y && y <= v.y + v.h;
+  }
+
+  /** 연쇄가 이어지는 중인지 (첫 파고들기 성공 후 콤보가 끊기기 전까지) */
+  chainActive(): boolean {
+    return this.chain > 0;
+  }
+
   private playerEye(): Vec {
     const p = this.player;
     return { x: cx(p) + p.facing * 3, y: p.y + 11 };
@@ -898,7 +993,9 @@ export class Sim {
     const pe = this.playerEye();
     p.eyeX = pe.x;
     p.eyeY = pe.y;
-    p.gazeFan = sightFan(pe, p.gaze, (T.gazeHalfAngle * Math.PI) / 180, T.lockRange, solids, 24);
+    // 연쇄 중에는 록온이 벽을 무시하므로 그림도 벽에서 자르지 않습니다 (보이는 범위 = 판정 범위).
+    // 퍼펙트 연쇄 중에는 시선 제한이 없으므로 원뿔을 그리지 않습니다.
+    p.gazeFan = this.perfectMode ? [] : sightFan(pe, p.gaze, (T.gazeHalfAngle * Math.PI) / 180, T.lockRange, this.chainActive() ? [] : solids, 24);
     for (const e of this.enemies) {
       if (e.state === 'down') {
         e.viewFan = [];

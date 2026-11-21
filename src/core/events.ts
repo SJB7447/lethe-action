@@ -15,7 +15,9 @@ export interface GameEventMap {
   'fragment:open': { enemyId: number; window: number; chained: boolean };
   'fragment:close': { enemyId: number; missed: boolean };
   'strike:start': { enemyId: number; chain: number };
-  'strike:hit': { enemyId: number; chain: number };
+  'strike:hit': { enemyId: number; chain: number; perfect: boolean };
+  'perfect:start': Record<string, never>;
+  'perfect:end': Record<string, never>;
   'enemy:telegraph': { enemyId: number; counter: boolean };
   'enemy:down': { enemyId: number };
   'enemy:notice': { enemyId: number; cause: 'sound' | 'sight' };

@@ -102,6 +102,7 @@ export interface EnemyView extends RectView {
   readonly eyeX: number;
   readonly eyeY: number;
   readonly viewFan: readonly PointView[]; // 적 시선 원뿔 (벽에서 잘림). 첫 점은 눈. 쓰러지면 빈 배열
+  readonly perfectTimer: number; // >0이면 퍼펙트 판정 시간 (조각이 열린 직후). 이 동안 조각이 달라 보여야 함
 }
 
 export type SoundKind = 'step' | 'jump' | 'land' | 'dash' | 'needle' | 'needleHit' | 'strike' | 'dive';
@@ -171,6 +172,7 @@ export interface ArtView {
   readonly gauge: number;
   readonly gaugeMax: number;
   readonly diveTimer: number; // >0이면 고스트 다이빙 연출 중
+  readonly perfectMode: boolean; // 퍼펙트 연쇄 중 (화면 안 모든 적 록온 가능)
   readonly hitstop: number; // >0이면 히트스톱 중
   readonly timeScale: number;
   readonly tuning: Readonly<Tuning>;

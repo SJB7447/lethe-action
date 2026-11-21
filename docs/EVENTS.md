@@ -17,7 +17,9 @@
 | `fragment:open` | `{ enemyId, window, chained }` | 찢긴 기억 조각 열림. chained=연쇄로 자동 열림 |
 | `fragment:close` | `{ enemyId, missed }` | 조각을 놓쳐 닫힘 (missed=true) |
 | `strike:start` | `{ enemyId, chain }` | 조각으로 파고들기 시작 |
-| `strike:hit` | `{ enemyId, chain }` | 파고들어 타격 성공 (히트스톱 시작 순간) |
+| `strike:hit` | `{ enemyId, chain, perfect }` | 파고들어 타격 성공 (히트스톱 시작 순간). perfect=조각이 열린 **뒤에 새로 누른** 공격이 퍼펙트 시간 안에 시작됨 (열리기 전 선입력은 일반 타격, 열리기 직전 `perfectMashGuard` 안에 헛공격이 있었으면 그 조각은 퍼펙트 불가, 직전 헛공격(파고들기로 이어지지 않은 입력)과의 간격이 `perfectMashGuard`보다 짧으면 연타로 보고 퍼펙트 아님. 방금 성공한 파고들기 입력은 연타로 치지 않음) |
+| `perfect:start` | `{}` | 퍼펙트 연쇄 시작: 화면 안의 모든 적을 벽·시선과 상관없이 록온 가능 |
+| `perfect:end` | `{}` | 퍼펙트 연쇄 끝 (연쇄·콤보가 끊김, 또는 방 초기화). `perfect:start` 뒤에는 반드시 한 번 옵니다 |
 | `enemy:telegraph` | `{ enemyId, counter }` | 적 공격 예고. counter=조각 놓친 뒤 반격 |
 | `enemy:down` | `{ enemyId }` | 적 쓰러짐 |
 | `enemy:notice` | `{ enemyId, cause }` | 적이 알아챔. cause=`sound`(소리를 듣고 확인하러 옴, 앰버 느낌표) / `sight`(이단아를 봄·맞음·반격, 크림슨 느낌표). **알아챔 단계가 올라갈 때마다 한 번**: `idle → heard`는 sound, `idle·heard → alert`는 sight. 그래서 소리를 듣고 확인하러 왔다가 이단아를 보면 sound → sight 두 번 옵니다. 같은 단계 안(계속 보이는 동안, 확인 중 소리를 또 들음)에서는 다시 오지 않습니다 |

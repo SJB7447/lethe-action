@@ -139,6 +139,14 @@ export const placeholderArt: Record<ArtLayer, LayerPainter> = {
       if (e.fragment > 0) {
         const t = e.fragment / e.fragmentMax;
         const r = 13 * (1 + Math.sin(v.realTime * 30) * 0.12);
+        // 퍼펙트 시간: 흰 테두리가 조여들며 빛남
+        if (e.perfectTimer > 0) {
+          const k = e.perfectTimer / Math.max(0.001, v.tuning.perfectWindow);
+          g.lineStyle(3, 0xffffff, 0.95);
+          g.strokeCircle(ex, ey, 22 + 18 * k);
+          g.fillStyle(0xffffff, 0.25);
+          g.fillCircle(ex, ey, 18);
+        }
         g.fillStyle(C.amber, 0.95);
         g.fillTriangle(ex, ey - r, ex + r * 0.7, ey, ex - r * 0.7, ey);
         g.fillTriangle(ex, ey + r, ex + r * 0.7, ey, ex - r * 0.7, ey);

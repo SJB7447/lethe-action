@@ -13,6 +13,7 @@ import type { Input } from '../core/input';
 import { tuning as T } from '../core/tuning';
 import { cx, cy } from '../game/physics';
 import { GAUGE_MAX, Sim } from '../game/sim';
+import { HitFx } from './hitFx';
 import { placeholderArt } from './placeholderArt';
 
 /**
@@ -38,6 +39,7 @@ export class LabScene extends Phaser.Scene {
   private camX = 0;
   private camY = 0;
   private realTime = 0;
+  private fx!: HitFx;
 
   constructor(
     private bus: EventBus,
@@ -62,6 +64,7 @@ export class LabScene extends Phaser.Scene {
       this.layers[layer] = this.add.graphics().setDepth(layerDepth(layer));
     }
     this.debugG = this.add.graphics().setDepth(DEBUG_DEPTH);
+    this.fx = new HitFx(this, this.bus, () => this.sim);
     try {
       this.art.init?.({ scene: this, layers: this.layers });
     } catch (err) {
@@ -71,7 +74,11 @@ export class LabScene extends Phaser.Scene {
     const p = this.sim.player;
     this.camX = cx(p) - this.scale.width / 2;
     this.camY = cy(p) - this.scale.height / 2;
-    (window as unknown as { __sim: Sim }).__sim = this.sim; // 디버그·테스트용
+    this.cameras.main.setScroll(this.camX, this.camY);
+    this.cameras.main.preRender();
+    this.syncView();
+    (window as unknown as { __sim: Sim; __lab: LabScene }).__sim = this.sim; // 디버그·테스트용
+    (window as unknown as { __lab: LabScene }).__lab = this;
   }
 
   update(_time: number, delta: number): void {
@@ -79,14 +86,31 @@ export class LabScene extends Phaser.Scene {
     this.realTime += realDt;
     this.input_.poll();
     if (this.input_.consume('debug')) T.showDebug = !T.showDebug;
-    // 마우스가 가리키는 월드 좌표 (카메라가 움직여도 매 프레임 다시 계산)
-    const ptr = this.input.activePointer;
-    const world = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
-    this.sim.aimWorld = { x: world.x, y: world.y };
+    // 판정은 지금 화면에 보이는 카메라(지난 프레임에 그린 것) 기준, 마우스는 지금 위치.
+    // 시뮬레이션 전에 현재 포인터를 그 카메라로 변환합니다 (클릭한 순간의 조준으로 대상 선택).
+    this.syncView();
     this.sim.frame(realDt);
     this.input_.endFrame();
+    this.fx.update(realDt);
     this.updateCamera(realDt);
+    // 이번 프레임의 확대·밀림을 카메라 행렬·worldView에 바로 반영한 뒤,
+    // 그 카메라 기준으로 마우스·화면 범위를 다시 읽고 시선 안내를 갱신합니다.
+    // → 그려지는 시선 원뿔과 다음 프레임의 판정이 모두 이 화면을 기준으로 합니다.
+    this.cameras.main.preRender();
+    this.syncView();
+    this.sim.refreshGuides();
     this.draw();
+    this.fx.draw();
+  }
+
+  /** 지금 카메라 기준으로 마우스가 가리키는 월드 좌표와 화면에 보이는 월드 영역을 Sim에 넘깁니다. */
+  private syncView(): void {
+    const cam = this.cameras.main;
+    const ptr = this.input.activePointer;
+    const world = cam.getWorldPoint(ptr.x, ptr.y);
+    this.sim.aimWorld = { x: world.x, y: world.y };
+    const wv = cam.worldView;
+    this.sim.viewRect = { x: wv.x, y: wv.y, w: wv.width, h: wv.height };
   }
 
   private updateCamera(dt: number): void {
@@ -102,8 +126,10 @@ export class LabScene extends Phaser.Scene {
     this.camX = Math.max(0, Math.min(this.sim.world.width - w, this.camX));
     this.camY = Math.max(0, Math.min(this.sim.world.height - h, this.camY));
     const s = this.sim.shake;
-    const ox = s > 0 ? (Math.random() * 2 - 1) * s : 0;
-    const oy = s > 0 ? (Math.random() * 2 - 1) * s : 0;
+    const fxOn = T.fxEnabled;
+    const ox = (s > 0 ? (Math.random() * 2 - 1) * s : 0) + (fxOn ? this.fx.kickX : 0);
+    const oy = (s > 0 ? (Math.random() * 2 - 1) * s : 0) + (fxOn ? this.fx.kickY : 0);
+    this.cameras.main.setZoom(1 + (fxOn ? this.fx.zoom : 0));
     this.cameras.main.setScroll(Math.round(this.camX + ox), Math.round(this.camY + oy));
   }
 
@@ -126,6 +152,7 @@ export class LabScene extends Phaser.Scene {
       gauge: sim.gauge,
       gaugeMax: GAUGE_MAX,
       diveTimer: sim.diveTimer,
+      perfectMode: sim.perfectMode,
       hitstop: sim.hitstop,
       timeScale: sim.timeScale,
       tuning: T,
