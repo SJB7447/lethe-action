@@ -1,5 +1,5 @@
 /**
- * [담당: Antigravity] UI 진입점. 레테 챕터 1(앰버 골드) 팔레트 HUD, 오버레이, 도움말.
+ * [담당: Antigravity] UI 진입점. 레테 챕터 1(앰버 골드) 팔레트 HUD, 스테이지 오버레이, 도움말.
  * initUI(bus)의 이름과 인자만 유지하면 내부는 자유롭게 바꿔도 됩니다.
  * src/game을 import하지 말고 이벤트만 구독합니다.
  */
@@ -36,7 +36,21 @@ export function initUI(bus: EventBus): void {
       </div>
     </header>
 
-    <div class="combo" id="hud-combo"></div>
+    <div class="room-banner" id="hud-room">
+      <div class="room-id" id="hud-room-id"></div>
+      <div class="room-name" id="hud-room-name"></div>
+    </div>
+
+    <div class="checkpoint-toast" id="hud-checkpoint">
+      <span class="cp-dot"></span>
+      <span>CHECKPOINT // 기억 동기화 완료</span>
+    </div>
+
+    <div class="combo-wrap">
+      <div class="combo" id="hud-combo"></div>
+      <div class="perfect-pop" id="hud-perfect-pop">PERFECT</div>
+      <div class="perfect-badge" id="hud-perfect-badge">PERFECT CHAIN · 전방위 록온</div>
+    </div>
 
     <div class="dive-overlay" id="hud-dive">
       <div class="dive-lines"></div>
@@ -44,6 +58,23 @@ export function initUI(bus: EventBus): void {
         <div class="dive-sub">LINK PROTOCOL // SEO JIN-HYUK</div>
         <div class="dive-text">서진혁 연결<span>고스트 다이빙</span></div>
         <div class="dive-count" id="hud-dive-count"></div>
+      </div>
+    </div>
+
+    <div class="death-overlay" id="hud-death">
+      <div class="death-emblem">
+        <div class="death-sub">MEMORY LINK SEVERED</div>
+        <div class="death-title">기억 연결 끊김</div>
+        <div class="death-hint">체크포인트에서 재구성 중...</div>
+      </div>
+    </div>
+
+    <div class="clear-overlay" id="hud-clear">
+      <div class="clear-card">
+        <div class="clear-sub">CHAPTER 1 // STAGE CLEAR</div>
+        <h2 class="clear-title">구간 돌파 완료</h2>
+        <div class="clear-grid" id="hud-clear-stats"></div>
+        <div class="clear-foot"><kbd>R</kbd> 처음부터 다시 시작</div>
       </div>
     </div>
 
@@ -56,13 +87,14 @@ export function initUI(bus: EventBus): void {
         <div><kbd>←→</kbd> <kbd>AD</kbd> 이동</div>
         <div><kbd>Space</kbd> <kbd>Z</kbd> 점프</div>
         <div><kbd>Shift</kbd> <kbd>X</kbd> 대시(무적)</div>
-        <div><kbd>J</kbd> <kbd>C</kbd> 파고들기 / 바늘</div>
-        <div><kbd>K</kbd> <kbd>V</kbd> 록온 (누르기)</div>
+        <div><kbd>마우스</kbd> 시선</div>
+        <div><kbd>J</kbd> <kbd>C</kbd> <kbd>좌클릭</kbd> 파고들기 / 바늘</div>
+        <div><kbd>K</kbd> <kbd>V</kbd> <kbd>우클릭</kbd> 록온 (누르기)</div>
         <div><kbd>E</kbd> 고스트 다이빙</div>
         <div><kbd>T</kbd> 자동 보조</div>
         <div><kbd>R</kbd> 방 초기화 · <kbd>\`</kbd> 범위</div>
       </div>
-      <div class="help-pad">패드: A 점프 · B/RT 대시 · X 공격 · RB/LT 록온 · Y 다이빙 · Select 보조</div>
+      <div class="help-pad">패드: R스틱 시선 · A 점프 · B/RT 대시 · X 공격 · RB/LT 록온 · Y 다이빙 · Select 보조</div>
     </aside>
 
     <div class="help-hint hidden" id="hud-help-hint"><kbd>H</kbd> 조작 안내</div>
@@ -76,28 +108,86 @@ export function initUI(bus: EventBus): void {
   const gaugeStatus = byId('hud-gauge-status');
   const mode = byId('hud-mode');
   const modeVal = byId('hud-mode-val');
+  const roomBanner = byId('hud-room');
+  const roomIdEl = byId('hud-room-id');
+  const roomNameEl = byId('hud-room-name');
+  const checkpointToast = byId('hud-checkpoint');
   const combo = byId('hud-combo');
+  const perfectPop = byId('hud-perfect-pop');
+  const perfectBadge = byId('hud-perfect-badge');
   const dive = byId('hud-dive');
   const diveCount = byId('hud-dive-count');
+  const deathOverlay = byId('hud-death');
+  const clearOverlay = byId('hud-clear');
+  const clearStats = byId('hud-clear-stats');
   const help = byId('hud-help');
   const helpHint = byId('hud-help-hint');
 
   let flashTimer = 0;
+  let roomTimer = 0;
+  let cpTimer = 0;
+  let perfectPopTimer = 0;
 
-  const triggerFlash = (kind: 'hurt' | 'impact') => {
-    flash.classList.remove('hurt', 'impact');
+  const triggerFlash = (kind: 'hurt' | 'impact' | 'respawn') => {
+    flash.classList.remove('hurt', 'impact', 'respawn');
     void flash.offsetWidth;
     flash.classList.add(kind);
     window.clearTimeout(flashTimer);
     flashTimer = window.setTimeout(() => {
-      flash.classList.remove('hurt', 'impact');
+      flash.classList.remove('hurt', 'impact', 'respawn');
     }, 340);
   };
 
   bus.on('room:reset', () => {
     combo.classList.remove('show', 'high');
+    perfectBadge.classList.remove('show');
+    perfectPop.classList.remove('show');
     dive.classList.remove('show');
     diveCount.textContent = '';
+    deathOverlay.classList.remove('show');
+    clearOverlay.classList.remove('show');
+  });
+
+  bus.on('room:enter', ({ roomId, name }) => {
+    roomIdEl.textContent = `AREA // ${roomId.toUpperCase()}`;
+    roomNameEl.textContent = name;
+    roomBanner.classList.remove('show');
+    void roomBanner.offsetWidth;
+    roomBanner.classList.add('show');
+    window.clearTimeout(roomTimer);
+    roomTimer = window.setTimeout(() => {
+      roomBanner.classList.remove('show');
+    }, 2200);
+  });
+
+  bus.on('checkpoint', () => {
+    checkpointToast.classList.remove('show');
+    void checkpointToast.offsetWidth;
+    checkpointToast.classList.add('show');
+    window.clearTimeout(cpTimer);
+    cpTimer = window.setTimeout(() => {
+      checkpointToast.classList.remove('show');
+    }, 2100);
+  });
+
+  bus.on('player:death', () => {
+    deathOverlay.classList.add('show');
+  });
+
+  bus.on('player:respawn', () => {
+    deathOverlay.classList.remove('show');
+    triggerFlash('respawn');
+  });
+
+  bus.on('stage:clear', ({ time, deaths, maxCombo, perfects, spotted }) => {
+    clearStats.innerHTML = `
+      <div class="stat-item"><span class="stat-label">클리어 시간</span><strong class="stat-val">${time.toFixed(1)}s</strong></div>
+      <div class="stat-item"><span class="stat-label">최대 연쇄</span><strong class="stat-val amber">${maxCombo}</strong></div>
+      <div class="stat-item"><span class="stat-label">퍼펙트</span><strong class="stat-val white">${perfects}</strong></div>
+      <div class="stat-item"><span class="stat-label">발각</span><strong class="stat-val">${spotted}</strong></div>
+      <div class="stat-item"><span class="stat-label">사망</span><strong class="stat-val">${deaths}</strong></div>
+    `;
+    clearOverlay.classList.add('show');
   });
 
   bus.on('player:hp', ({ hp: v, maxHp }) => {
@@ -112,6 +202,25 @@ export function initUI(bus: EventBus): void {
     hpPanel.classList.remove('shake');
     void hpPanel.offsetWidth;
     hpPanel.classList.add('shake');
+  });
+
+  bus.on('strike:hit', ({ perfect }) => {
+    if (!perfect) return;
+    perfectPop.classList.remove('show');
+    void perfectPop.offsetWidth;
+    perfectPop.classList.add('show');
+    window.clearTimeout(perfectPopTimer);
+    perfectPopTimer = window.setTimeout(() => {
+      perfectPop.classList.remove('show');
+    }, 650);
+  });
+
+  bus.on('perfect:start', () => {
+    perfectBadge.classList.add('show');
+  });
+
+  bus.on('perfect:end', () => {
+    perfectBadge.classList.remove('show');
   });
 
   bus.on('gauge:change', ({ value, max }) => {

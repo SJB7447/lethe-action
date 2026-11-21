@@ -8,8 +8,9 @@
   --crimson-bright: #ff5470;
   --cyan: #6ee7f2;
   --violet: #9b7bd4;
+  --white-mem: #fff1cf;
   --ink: #0b0d14;
-  --ink-panel: rgba(13, 16, 25, 0.82);
+  --ink-panel: rgba(13, 16, 25, 0.84);
   --border-dim: rgba(232, 176, 75, 0.24);
   --border-bright: rgba(232, 176, 75, 0.65);
   --text: #d8dcf0;
@@ -53,7 +54,7 @@ body {
   overflow: hidden;
 }
 
-/* 화면 외곽 플래시 (피격 크림슨 / 다이빙 임팩트 앰버) */
+/* 화면 외곽 플래시 (피격 크림슨 / 다이빙 임팩트 앰버 / 재시작 청록) */
 .hud-flash {
   position: absolute;
   inset: 0;
@@ -68,6 +69,11 @@ body {
 
 .hud-flash.impact {
   background: radial-gradient(circle at center, rgba(255, 209, 102, 0.22) 0%, rgba(232, 176, 75, 0.35) 65%, transparent 100%);
+  animation: flash-fade 0.34s ease-out forwards;
+}
+
+.hud-flash.respawn {
+  background: radial-gradient(circle at center, rgba(110, 231, 242, 0.22) 0%, rgba(11, 13, 20, 0.15) 75%, transparent 100%);
   animation: flash-fade 0.34s ease-out forwards;
 }
 
@@ -265,11 +271,88 @@ body {
   color: var(--amber-bright);
 }
 
-/* 연쇄 콤보 (#tuning 패널과 겹치지 않도록 우측 332px 여백 확보) */
-.combo {
+/* 방 이름 배너 (room:enter) */
+.room-banner {
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translate(-50%, -8px);
+  text-align: center;
+  padding: 10px 32px;
+  background: linear-gradient(90deg, transparent, rgba(11, 13, 20, 0.88) 22%, rgba(11, 13, 20, 0.88) 78%, transparent);
+  border-top: 1px solid var(--border-dim);
+  border-bottom: 1px solid var(--border-dim);
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.room-banner.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.room-id {
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  color: var(--amber);
+  opacity: 0.88;
+  margin-bottom: 3px;
+}
+
+.room-name {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--white-mem);
+  text-shadow: 0 0 14px var(--amber-glow);
+}
+
+/* 체크포인트 알림 */
+.checkpoint-toast {
+  position: absolute;
+  top: 146px;
+  left: 50%;
+  transform: translate(-50%, -6px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--cyan);
+  background: var(--ink-panel);
+  border: 1px solid rgba(110, 231, 242, 0.45);
+  box-shadow: 0 0 16px rgba(110, 231, 242, 0.2);
+  opacity: 0;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.checkpoint-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.cp-dot {
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
+}
+
+/* 연쇄 콤보 + 퍼펙트 표시 (#tuning 패널과 겹치지 않도록 우측 332px 여백 확보) */
+.combo-wrap {
   position: absolute;
   top: 18px;
   right: 332px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.combo {
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -321,6 +404,41 @@ body {
 
 .combo.pop {
   animation: pop 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.perfect-pop {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.28em;
+  color: var(--white-mem);
+  text-shadow: 0 0 14px rgba(255, 241, 207, 0.9), 0 0 24px var(--amber);
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.12s ease;
+}
+
+.perfect-pop.show {
+  opacity: 1;
+  animation: pop 0.22s ease-out forwards;
+}
+
+.perfect-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  padding: 4px 10px;
+  color: var(--white-mem);
+  background: rgba(255, 241, 207, 0.12);
+  border: 1px solid rgba(255, 241, 207, 0.65);
+  box-shadow: 0 0 14px rgba(255, 241, 207, 0.35);
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.perfect-badge.show {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* 고스트 다이빙 오버레이 */
@@ -393,12 +511,157 @@ body {
   color: var(--cyan);
 }
 
+/* 사망·재시작 오버레이 */
+.death-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  background: radial-gradient(circle at center, rgba(194, 51, 77, 0.22) 0%, rgba(11, 13, 20, 0.82) 72%);
+  transition: opacity 0.2s ease;
+}
+
+.death-overlay.show {
+  opacity: 1;
+}
+
+.death-emblem {
+  text-align: center;
+  padding: 20px 52px;
+  border-top: 1px solid rgba(194, 51, 77, 0.7);
+  border-bottom: 1px solid rgba(194, 51, 77, 0.7);
+  background: linear-gradient(90deg, transparent, rgba(11, 13, 20, 0.9) 20%, rgba(11, 13, 20, 0.9) 80%, transparent);
+}
+
+.death-sub {
+  font-size: 11px;
+  letter-spacing: 0.34em;
+  color: var(--crimson-bright);
+  margin-bottom: 8px;
+}
+
+.death-title {
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: var(--white-mem);
+  text-shadow: 0 0 20px rgba(194, 51, 77, 0.7);
+}
+
+.death-hint {
+  margin-top: 10px;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+/* 스테이지 클리어 기록 화면 */
+.clear-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  background: rgba(11, 13, 20, 0.72);
+  backdrop-filter: blur(4px);
+  transition: opacity 0.26s ease;
+}
+
+.clear-overlay.show {
+  opacity: 1;
+}
+
+.clear-card {
+  min-width: 440px;
+  padding: 26px 34px;
+  text-align: center;
+  background: var(--ink-panel);
+  border: 1px solid var(--border-bright);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.65), 0 0 28px rgba(232, 176, 75, 0.2);
+}
+
+.clear-sub {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  color: var(--amber);
+  margin-bottom: 6px;
+}
+
+.clear-title {
+  margin: 0 0 20px;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--white-mem);
+  text-shadow: 0 0 18px var(--amber-glow);
+}
+
+.clear-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 8px;
+  background: rgba(11, 13, 20, 0.65);
+  border: 1px solid var(--border-dim);
+}
+
+.stat-label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.stat-val {
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.stat-val.amber {
+  color: var(--amber-bright);
+}
+
+.stat-val.white {
+  color: var(--white-mem);
+}
+
+.clear-foot {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.clear-foot kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  margin-right: 4px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--amber-bright);
+  background: rgba(232, 176, 75, 0.14);
+  border: 1px solid rgba(232, 176, 75, 0.45);
+  border-radius: 3px;
+}
+
 /* 도움말 패널 */
 .help {
   position: absolute;
   bottom: 14px;
   left: 16px;
-  max-width: 470px;
+  max-width: 480px;
   font-size: 12px;
   line-height: 1.65;
   background: var(--ink-panel);
