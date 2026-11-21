@@ -25,11 +25,18 @@ export function cy(r: Rect): number {
 }
 
 export class World {
-  readonly solids: Rect[] = [];
+  solids: Rect[] = [];
   constructor(
-    readonly width: number,
-    readonly height: number,
+    public width: number,
+    public height: number,
   ) {}
+
+  /** 방을 바꿀 때 크기와 지형을 통째로 바꿉니다. */
+  load(width: number, height: number, solids: readonly Rect[]): void {
+    this.width = width;
+    this.height = height;
+    this.solids = solids.map((s) => ({ ...s }));
+  }
 
   /** 축을 나눠서 이동하고 충돌을 해결합니다. */
   move(b: Body, dt: number): void {

@@ -31,7 +31,12 @@
 | `dive:impact` | `{ count }` | 다이빙 타격 순간, 쓰러뜨린 적 수 |
 | `dive:end` | `{}` | 다이빙 연출 끝 |
 | `mode:change` | `{ assist }` | 록온 수동/자동 보조 전환 |
-| `room:reset` | `{}` | 방 초기화 |
+| `room:reset` | `{}` | 처음부터 다시 (실험실: 방 초기화, 스테이지: 첫 방·기록 초기화) |
+| `room:enter` | `{ roomId, name }` | 스테이지에서 방에 들어감 (처음 시작·출입구 이동·다시 시작 포함). 방 이름 표시용 |
+| `checkpoint` | `{ id, roomId }` | 새 체크포인트에 닿음 (체력도 회복, 이어서 `player:hp`) |
+| `player:death` | `{}` | 스테이지에서 체력 0. `deathRespawnDelay` 뒤 `player:respawn` |
+| `player:respawn` | `{}` | 마지막 체크포인트에서 다시 시작 (쓰러뜨린 적은 모두 돌아옴, 게이지 유지) |
+| `stage:clear` | `{ time, deaths, maxCombo, perfects, spotted }` | 스테이지 끝 도착. 정산 화면용 기록 (time은 게임 시간 s, spotted는 발각 횟수) |
 
 피격 시 순서: `player:hurt` → `player:hp` (이어서 콤보가 있었다면 `combo:end` → `combo:change`)
 

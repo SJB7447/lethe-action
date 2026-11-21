@@ -39,6 +39,30 @@ export const placeholderArt: Record<ArtLayer, LayerPainter> = {
       g.lineStyle(2, C.solidEdge, 1);
       g.lineBetween(s.x, s.y, s.x + s.w, s.y);
     }
+    const st = v.stage;
+    // 출입구: 앰버 문틀
+    for (const ex of st.exits) {
+      g.fillStyle(C.amber, 0.08);
+      g.fillRect(ex.x, ex.y, ex.w, ex.h);
+      g.lineStyle(2, C.amber, 0.6);
+      g.strokeRect(ex.x + 2, ex.y + 2, ex.w - 4, ex.h - 4);
+    }
+    // 체크포인트: 기둥 + 불빛 (켜지면 청록)
+    for (const cp of st.checkpoints) {
+      const on = cp.active;
+      g.fillStyle(0x3a4058, 1);
+      g.fillRect(cp.x + cp.w / 2 - 4, cp.y + 30, 8, cp.h - 30);
+      g.fillStyle(on ? C.player : 0x5a6078, on ? 0.95 : 0.6);
+      g.fillCircle(cp.x + cp.w / 2, cp.y + 22, on ? 10 + Math.sin(v.realTime * 4) * 1.5 : 8);
+    }
+    // 끝 지점 (보스·컷신이 생기기 전 임시)
+    if (st.goal) {
+      const gl = st.goal;
+      g.fillStyle(0xffffff, 0.06 + 0.04 * Math.sin(v.realTime * 3));
+      g.fillRect(gl.x, gl.y, gl.w, gl.h);
+      g.lineStyle(2, 0xffffff, 0.7);
+      g.strokeRect(gl.x, gl.y, gl.w, gl.h);
+    }
   },
 
   perception(g, v) {
@@ -160,9 +184,23 @@ export const placeholderArt: Record<ArtLayer, LayerPainter> = {
   },
 
   screen(g, v) {
-    if (v.diveTimer <= 0) return;
-    g.fillStyle(0x2a1a4a, 0.35);
-    g.fillRect(v.camera.scrollX, v.camera.scrollY, v.camera.width, v.camera.height);
+    const cam = v.camera;
+    if (v.diveTimer > 0) {
+      g.fillStyle(0x2a1a4a, 0.35);
+      g.fillRect(cam.scrollX, cam.scrollY, cam.width, cam.height);
+    }
+    // 사망: 크림슨에서 어둠으로
+    if (v.stage.deathTimer > 0) {
+      const k = 1 - v.stage.deathTimer / Math.max(0.01, v.tuning.deathRespawnDelay); // 0 → 1
+      g.fillStyle(C.cracked, 0.25 * (1 - k));
+      g.fillRect(cam.scrollX, cam.scrollY, cam.width, cam.height);
+      g.fillStyle(C.bg, Math.min(0.9, k * 1.2));
+      g.fillRect(cam.scrollX, cam.scrollY, cam.width, cam.height);
+    }
+    if (v.stage.cleared) {
+      g.fillStyle(C.bg, 0.6);
+      g.fillRect(cam.scrollX, cam.scrollY, cam.width, cam.height);
+    }
   },
 };
 

@@ -30,6 +30,11 @@ export interface GameEventMap {
   'dive:end': Record<string, never>;
   'mode:change': { assist: boolean };
   'room:reset': Record<string, never>;
+  'room:enter': { roomId: string; name: string };
+  checkpoint: { id: string; roomId: string };
+  'player:death': Record<string, never>;
+  'player:respawn': Record<string, never>;
+  'stage:clear': { time: number; deaths: number; maxCombo: number; perfects: number; spotted: number };
 }
 
 export type GameEventName = keyof GameEventMap;
