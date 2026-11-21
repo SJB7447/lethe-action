@@ -101,12 +101,12 @@ export const DEFAULT_TUNING = {
   diveSlowmo: 0.15,
 
   // ── 보스 (챕터 1 균열형) ──
-  bossMaxHp: 16,
+  bossMaxHp: 25,
   bossWeakDamage: 1, // 약점 균열 한 곳
   bossPerfectDamage: 2, // 약점 균열 퍼펙트
   bossCoreDamage: 4, // 다운 중 핵심 균열 (퍼펙트면 ×1.5)
   bossDiveDamage: 5, // 다운 중 고스트 다이빙
-  bossDownTime: 4, // 다운 시간 = 핵심 균열이 열려 있는 시간
+  bossDownTime: 3, // 다운 시간 = 핵심 균열이 열려 있는 시간
   bossIntroTime: 1.5,
   bossMoveSpeed: 70,
   bossPatternGap: 2.2, // 패턴 사이 쉬는 시간 (페이즈 1)
