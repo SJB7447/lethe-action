@@ -5,7 +5,8 @@
 - `src/core`, `src/game`, `src/scenes`, `src/debug`, 빌드 설정.
 - 이벤트 목록(`src/core/events.ts`, `docs/EVENTS.md`)의 관리자.
 
-## Antigravity — 효과음, UI, 그래픽 (Gemini 4 Hydrogen)
+## Antigravity — 효과음, UI, 그래픽 (Gemini 4 Neon)
+- 사용 모델: PR #14부터 **Gemini 4 Neon**, 그 전(PR #2·#7·#9)은 Gemini 4 Hydrogen. 모델을 바꾸면 이 줄과 `docs/art/AI_LOG.md`에 적습니다.
 - `src/audio/`: 이벤트를 받아 효과음을 재생. 지금은 WebAudio로 만든 임시음.
   실제 효과음 파일은 `public/assets/audio/`에 넣고 `src/audio/sfx.ts`에서 교체.
 - `src/ui/`: HUD(연결 게이지, 콤보, 체력), 고스트 다이빙 연출 오버레이, 도움말, 이후 메뉴.
