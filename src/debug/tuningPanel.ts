@@ -127,6 +127,31 @@ const GROUPS: { title: string; expanded: boolean; items: Range[] }[] = [
     ],
   },
   {
+    title: '보스 (챕터 1)',
+    expanded: false,
+    items: [
+      ['bossMaxHp', '보스 체력', 4, 60, 1],
+      ['bossWeakDamage', '약점 피해', 0, 6, 0.5],
+      ['bossPerfectDamage', '약점 퍼펙트 피해', 0, 8, 0.5],
+      ['bossCoreDamage', '핵심 균열 피해', 0, 16, 0.5],
+      ['bossCorePerfectMult', '핵심 퍼펙트 배율', 1, 3, 0.05],
+      ['bossDiveDamage', '다운 중 다이빙 피해', 0, 20, 0.5],
+      ['bossDiveRange', '다이빙이 보스에 닿는 거리', 100, 2000, 10],
+      ['bossDownTime', '다운 시간', 0.5, 10, 0.1],
+      ['bossPatternGap', '패턴 간격(페이즈 1)', 0.3, 6, 0.1],
+      ['bossPatternGap2', '패턴 간격(페이즈 2)', 0.3, 6, 0.1],
+      ['bossWaveTelegraph', '파동 예고', 0.1, 2, 0.05],
+      ['bossWaveSpeed', '파동 속도', 100, 1500, 10],
+      ['bossPhase2WaveBoost', '페이즈 2 파동 배속', 1, 2.5, 0.05],
+      ['bossWaveWidth', '파동 두께', 10, 160, 2],
+      ['bossWaveDodgeMargin', '파동 회피 성공 여유', 0, 200, 5],
+      ['bossChargeTelegraph', '돌진 예고', 0.1, 2, 0.05],
+      ['bossChargeSpeed', '돌진 속도', 200, 2000, 10],
+      ['bossChargeRecover', '돌진 뒤 빈틈', 0.1, 3, 0.05],
+      ['bossMoveSpeed', '걷는 속도', 0, 300, 5],
+    ],
+  },
+  {
     title: '타격 화면 효과',
     expanded: true,
     items: [
@@ -158,6 +183,7 @@ export function initTuningPanel(bus: EventBus, onRespawn: () => void): Pane {
   const modes = pane.addFolder({ title: '모드', expanded: true });
   modes.addBinding(tuning, 'assist', { label: '자동 보조' }).on('change', (ev) => bus.emit('mode:change', { assist: ev.value }));
   modes.addBinding(tuning, 'autoRespawn', { label: '적 자동 재생성' });
+  modes.addBinding(tuning, 'contactDamage', { label: '닿으면 피격' });
   modes.addBinding(tuning, 'showDebug', { label: '범위·판정 박스' });
   modes.addBinding(tuning, 'showArt', { label: '그래픽 표시' });
   modes.addBinding(tuning, 'showPerception', { label: '시선·소리 범위' });

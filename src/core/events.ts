@@ -35,6 +35,14 @@ export interface GameEventMap {
   'player:death': Record<string, never>;
   'player:respawn': Record<string, never>;
   'stage:clear': { time: number; deaths: number; maxCombo: number; perfects: number; spotted: number };
+  'boss:start': { name: string; maxHp: number };
+  'boss:hp': { hp: number; maxHp: number };
+  'boss:phase': { phase: 2 };
+  'boss:pattern': { pattern: 'wave' | 'charge'; step: 'telegraph' | 'active' };
+  'boss:weakpoint': { broken: number; total: number };
+  'boss:down': { duration: number };
+  'boss:recover': Record<string, never>;
+  'boss:defeat': { name: string };
 }
 
 export type GameEventName = keyof GameEventMap;

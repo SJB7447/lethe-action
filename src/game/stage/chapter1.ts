@@ -154,24 +154,46 @@ const R4: RoomDef = {
   ],
 };
 
-// ── R5 보스 전실: 컷신 자리 (지금은 스테이지 끝) ──
-const r5 = shell(1200, 900, [{ side: 'left', floorY: 860, to: 'r4', entry: 'east' }]);
+// ── R5 보스 전실: 컷신 자리 (2-5 컷신 시스템에서) ──
+const r5 = shell(1200, 900, [
+  { side: 'left', floorY: 860, to: 'r4', entry: 'east' },
+  { side: 'right', floorY: 860, to: 'r6', entry: 'west' },
+]);
 const R5: RoomDef = {
   id: 'r5',
   name: 'R5 보스 전실',
   width: 1200,
   height: 900,
-  entries: { west: { x: 110, y: 860 } },
+  entries: { west: { x: 110, y: 860 }, east: { x: 1080, y: 860 } },
   solids: [...r5.solids],
   exits: r5.exits,
   checkpoints: [{ id: 'cp-r5', x: 200, y: 720, w: 60, h: 140, entry: 'west' }],
   enemies: [],
-  goal: { x: 1000, y: 700, w: 120, h: 160 }, // 보스·컷신이 생기기 전까지 임시 끝 지점
+};
+
+// ── R6 보스방: 균열형 보스. 들어오면 출입구가 없음 (격파 또는 사망) ──
+const r6 = shell(1700, 900, []);
+const R6: RoomDef = {
+  id: 'r6',
+  name: 'R6 보안 책임자실',
+  width: 1700,
+  height: 900,
+  entries: { west: { x: 140, y: 860 } },
+  solids: [
+    ...r6.solids,
+    // 보스는 발판을 통과하므로 낮은 디딤판(740)은 보스 몸과 겹침 → 그 위 높은 발판(620)이 돌진을 피하는 자리
+    { x: 260, y: 740, w: 200, h: 20 },
+    { x: 1240, y: 740, w: 200, h: 20 },
+    { x: 520, y: 620, w: 200, h: 20 },
+    { x: 980, y: 620, w: 200, h: 20 },
+  ],
+  enemies: [],
+  boss: { name: '챕터 1 보스 (가칭)', x: 1200, y: 860 },
 };
 
 export const CHAPTER1: StageDef = {
   id: 'ch1',
   name: '챕터 1 — 레테 마포점 로비',
   start: { room: 'r1', entry: 'start' },
-  rooms: [R1, R2, R3, R4, R5],
+  rooms: [R1, R2, R3, R4, R5, R6],
 };

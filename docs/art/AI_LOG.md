@@ -10,3 +10,4 @@
 | 2026-11-20 | src/art/palette.ts, src/art/fragments.ts | Antigravity + Gemini | 레테 팔레트 상수 및 fragments 층(록온 수축·균열선·찢긴 기억 조각·퍼펙트 수축 테두리·남은 시간 링) 그리기 코드 | 기획자/지침서: 2·3·4장 팔레트·시각 언어·히트스톱(`view.time`) 규칙 및 퍼펙트 판정(`perfectTimer`) 강조 요구 |
 | 2026-11-20 | src/art/player.ts, src/art/perception.ts, src/art/alerts.ts | Antigravity + Gemini | 이단아 실루엣·시선 추적 눈동자(player), 시선 원뿔·실제 판정 소리 외곽선+장식 파동(perception), 각진 느낌표(alerts) 그리기 코드 | 기획자/리뷰: 판정 박스 내 실루엣, `gaze`/`viewFan`/`sounds[].points` 일치, ART9-1 소리 외곽선 즉시 표시 규칙 지정 |
 | 2026-11-20 | src/art/terrain.ts | Antigravity + Gemini | 발판·벽(저명도 건축 톤), 출입구 앰버 문틀, 체크포인트 마름모 비콘(`active` 구분), 스테이지 끝 게이트 그리기 코드 | 기획자/지침서: 배경·지형 저명도 규칙(3장) 및 `view.stage` 출입구·체크포인트·끝 지점 구분 표시 요구 |
+| 2026-11-21 | src/scenes/placeholderArt.ts (임시 그림), src/scenes/LabScene.ts | Claude Code + Claude Opus 5.5 | 보스 임시 그림(몸체·약점/핵심 균열 소켓·파동 고리·예고 표시·다운 맥동)과 임시 보스 체력 막대, 보스전 카메라 구도 | 기획자: 균열형 보스·방 연결 구조 선택, 계획서 패턴 후보 승인. 약점 위치·패턴 2종(파동·돌진)·그림 표현은 Claude 제안 |

@@ -15,7 +15,7 @@
 | `lock:progress` | `{ enemyId, progress }` | 적에게 록온이 걸리기 시작 (progress=0) |
 | `lock:complete` | `{ enemyId }` | 록온 완료 직후 |
 | `fragment:open` | `{ enemyId, window, chained }` | 찢긴 기억 조각 열림. chained=연쇄로 자동 열림 |
-| `fragment:close` | `{ enemyId, missed }` | 조각을 놓쳐 닫힘 (missed=true) |
+| `fragment:close` | `{ enemyId, missed }` | 조각이 닫힘. missed=true: 시간 안에 치지 못함 (보스 핵심 균열을 다운 중에 못 친 경우 포함, 연쇄·퍼펙트 종료) / missed=false: 보스의 기억 소거 파동이 강제로 닫음 (반격·연쇄 종료 없음) |
 | `strike:start` | `{ enemyId, chain }` | 조각으로 파고들기 시작 |
 | `strike:hit` | `{ enemyId, chain, perfect }` | 파고들어 타격 성공 (히트스톱 시작 순간). perfect=조각이 열린 **뒤에 새로 누른** 공격이 퍼펙트 시간 안에 시작됨 (열리기 전 선입력은 일반 타격, 열리기 직전 `perfectMashGuard` 안에 헛공격이 있었으면 그 조각은 퍼펙트 불가, 직전 헛공격(파고들기로 이어지지 않은 입력)과의 간격이 `perfectMashGuard`보다 짧으면 연타로 보고 퍼펙트 아님. 방금 성공한 파고들기 입력은 연타로 치지 않음) |
 | `perfect:start` | `{}` | 퍼펙트 연쇄 시작: 화면 안의 모든 적을 벽·시선과 상관없이 록온 가능 |
@@ -36,6 +36,14 @@
 | `checkpoint` | `{ id, roomId }` | 새 체크포인트에 닿음 (체력도 회복, 이어서 `player:hp`) |
 | `player:death` | `{}` | 스테이지에서 체력 0. `deathRespawnDelay` 뒤 `player:respawn` |
 | `player:respawn` | `{}` | 마지막 체크포인트에서 다시 시작 (쓰러뜨린 적은 모두 돌아옴, 게이지 유지) |
+| `boss:start` | `{ name, maxHp }` | 보스방에 들어가 보스가 나타남 (이어서 `boss:hp`) |
+| `boss:hp` | `{ hp, maxHp }` | 보스 체력 변화 (나타날 때 포함) |
+| `boss:phase` | `{ phase }` | 체력 절반 이하 → 페이즈 2 (한 번) |
+| `boss:pattern` | `{ pattern, step }` | 패턴 `wave`(기억 소거 파동) / `charge`(돌진). `telegraph` 예고 → `active` 실행 |
+| `boss:weakpoint` | `{ broken, total }` | 약점 균열 하나가 끊김 (끊긴 수 / 전체) |
+| `boss:down` | `{ duration }` | 약점 3곳이 모두 끊겨 다운. 핵심 균열이 열림 (그 `fragment:open.window` = duration) |
+| `boss:recover` | `{}` | 다운에서 일어남. 약점 균열이 다시 생김 |
+| `boss:defeat` | `{ name }` | 보스 격파 (`bossDefeatDelay` 뒤 `stage:clear`) |
 | `stage:clear` | `{ time, deaths, maxCombo, perfects, spotted }` | 스테이지 끝 도착 (한 번). 정산 화면용 기록 (time은 게임 시간 s, maxCombo는 다이빙으로 올린 콤보 포함, spotted는 발각 횟수) |
 
 피격 시 순서: `player:hurt` → `player:hp` (이어서 콤보가 있었다면 `combo:end` → `combo:change`)

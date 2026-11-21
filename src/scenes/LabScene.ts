@@ -126,8 +126,17 @@ export class LabScene extends Phaser.Scene {
     const w = this.scale.width;
     const h = this.scale.height;
     const lookAhead = Math.max(-140, Math.min(140, p.vx * 0.18));
-    const tx = cx(p) + lookAhead - w / 2;
-    const ty = cy(p) - h * 0.55;
+    let tx = cx(p) + lookAhead - w / 2;
+    let ty = cy(p) - h * 0.55;
+    // 보스전: 이단아와 보스를 함께 비춤 (이단아 쪽에 무게, 둘이 화면 폭을 넘으면 이단아 우선)
+    const b = this.sim.boss;
+    if (b && b.state !== 'defeated') {
+      const bx = b.x + b.w / 2;
+      const span = Math.abs(bx - cx(p));
+      const k = span < w * 0.8 ? 0.45 : 0.3;
+      tx = cx(p) + (bx - cx(p)) * k - w / 2;
+      ty = Math.min(ty, b.y + b.h / 2 - h * 0.55);
+    }
     const k = this.snapCamera ? 1 : 1 - Math.exp(-8 * dt); // 방이 바뀌면 바로 이동
     this.snapCamera = false;
     this.camX += (tx - this.camX) * k;
@@ -162,6 +171,7 @@ export class LabScene extends Phaser.Scene {
       gaugeMax: GAUGE_MAX,
       diveTimer: sim.diveTimer,
       perfectMode: sim.perfectMode,
+      boss: sim.boss,
       stage: {
         mode: sim.mode,
         roomId: sim.room.id,

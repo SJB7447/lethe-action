@@ -1,6 +1,7 @@
 import type { EventBus } from '../core/events';
 import type { Input } from '../core/input';
 import { tuning as T } from '../core/tuning';
+import { BOSS_H, BOSS_PARTS, BOSS_W, type BossData, type BossPartRole, type BossSpec } from './boss';
 import { hears, inCone, inSight, sightFan, soundShape, type Vec } from './perception';
 import { approach, cx, cy, overlaps, World, type Body } from './physics';
 import { LAB_ROOM, type CheckpointDef, type EnemySpawn, type RoomDef, type StageDef } from './room';
@@ -89,6 +90,9 @@ export interface Enemy extends Body {
   bob: number;
   /** 방 데이터에서 몇 번째 적인지 (쓰러진 적을 방 상태에 기록) */
   spawnIndex: number;
+  /** 보스 몸의 균열이면 역할 (일반 적은 null). 위치는 보스가 정하고 스스로 움직이거나 공격하지 않음 */
+  bossPart: BossPartRole | null;
+  partIndex: number;
   /** idle: 모름 / heard: 소리를 듣고 확인하러 감 / alert: 이단아를 봄 */
   awareness: Awareness;
   awareTimer: number;
@@ -163,6 +167,10 @@ export class Sim {
   /** 스테이지 끝에 도착함 */
   cleared = false;
   stats: StageStats = { time: 0, deaths: 0, maxCombo: 0, perfects: 0, spotted: 0 };
+  /** 지금 방의 보스 (없으면 null) */
+  boss: BossData | null = null;
+  /** 지금 처리 중인 파고들기가 퍼펙트인지 (보스 균열 피해 계산용) */
+  private strikingPerfect = false;
   /** 방마다 쓰러뜨린 적 (사망 전까지 유지) */
   private killed = new Map<string, Set<number>>();
   player!: Player;
@@ -244,6 +252,8 @@ export class Sim {
     this.world.load(room.width, room.height, room.solids);
     const dead = this.killed.get(room.id) ?? new Set<number>();
     this.enemies = room.enemies.map((sp, i) => ({ sp, i })).filter(({ i }) => !dead.has(i)).map(({ sp, i }) => this.makeEnemy(sp, i));
+    this.boss = null;
+    if (room.boss && this.mode === 'stage') this.spawnBoss(room.boss);
     this.needles = [];
     this.particles = [];
     this.ghosts = [];
@@ -291,6 +301,7 @@ export class Sim {
       id: this.nextId++, spawn: sp, kind: sp.kind, flying: sp.flying,
       x: sp.x, y: sp.y, w: 30, h: sp.flying ? 30 : 44, vx: 0, vy: 0, onGround: false, wallDir: 0,
       hp, maxHp: hp, state: 'patrol', timer: 0, dir: sp.dir ?? 1, attackCd: 1, lungeDir: { x: 0, y: 0 }, spawnIndex,
+      bossPart: null, partIndex: -1,
       counter: false, lockProgress: 0, fragment: 0, fragmentMax: 1, hurtFlash: 0, bob: Math.random() * 6,
       awareness: 'idle', awareTimer: 0, heardX: 0, heardY: 0, markTimer: 0, markKind: 'sound',
       eyeX: 0, eyeY: 0, viewFan: [], perfectTimer: 0, openedAt: -Infinity,
@@ -379,6 +390,7 @@ export class Sim {
     this.updateGaze(); // 이번 스텝의 입력·이동으로 바뀐 몸 방향·눈 위치를 록온에 반영
     if (this.mode === 'stage' && this.checkStageTriggers()) return; // 방이 바뀌었거나 끝에 도착
     for (const e of this.enemies) this.updateEnemy(e, dt);
+    if (this.boss) this.updateBoss(dt);
     this.updateLock(dt);
     this.updateNeedles(dt);
     this.checkEnemyHits();
@@ -532,10 +544,11 @@ export class Sim {
     if (!p.onGround) p.airDashes--;
 
     // 회피 성공 판정: 공격 중이거나 공격 예고 중인 적이 가까이 있으면
-    const perfect = this.enemies.some(
-      (e) => (e.state === 'lunge' || (e.state === 'telegraph' && e.timer < 0.2)) &&
-        Math.hypot(cx(e) - cx(p), cy(e) - cy(p)) < T.perfectDodgeRange,
-    );
+    const perfect =
+      this.enemies.some(
+        (e) => (e.state === 'lunge' || (e.state === 'telegraph' && e.timer < 0.2)) &&
+          Math.hypot(cx(e) - cx(p), cy(e) - cy(p)) < T.perfectDodgeRange,
+      ) || this.bossDodgeable();
     if (perfect) {
       p.dodgeBonus = T.dodgeBonusDuration;
       p.airDashes = 1;
@@ -593,7 +606,7 @@ export class Sim {
       if (n.traveled > T.needleRange || this.world.hits({ x: n.x - 2, y: n.y - 2, w: 4, h: 4 })) n.alive = false;
       if (!n.alive) continue;
       for (const e of this.enemies) {
-        if (e.state === 'down') continue;
+        if (e.state === 'down' || e.bossPart) continue; // 보스 균열은 파고들기로만
         if (!overlaps({ x: n.x - 6, y: n.y - 6, w: 12, h: 12 }, e)) continue;
         n.alive = false;
         e.hp--;
@@ -685,8 +698,9 @@ export class Sim {
     }
   }
 
-  private openFragment(e: Enemy, chained: boolean): void {
-    const window = T.fragmentWindow * (T.assist ? T.assistWindowBonus : 1);
+  /** 조각을 엽니다. windowOverride를 주면 그 시간으로 (보스 핵심 균열 = 다운 시간). 이벤트도 같은 값 */
+  private openFragment(e: Enemy, chained: boolean, windowOverride?: number): void {
+    const window = windowOverride ?? T.fragmentWindow * (T.assist ? T.assistWindowBonus : 1);
     e.fragment = window;
     e.fragmentMax = window;
     e.openedAt = this.time;
@@ -698,6 +712,10 @@ export class Sim {
 
   private onFragmentMissed(e: Enemy): void {
     this.bus.emit('fragment:close', { enemyId: e.id, missed: true });
+    if (e.bossPart) {
+      if (this.combo > 0) this.endCombo();
+      return;
+    }
     if (e.state !== 'down') {
       this.alert(e);
       e.state = 'telegraph';
@@ -790,7 +808,9 @@ export class Sim {
     const perfect = p.strikePerfect;
     p.strikePerfect = false;
     e.fragment = 0;
+    this.strikingPerfect = perfect;
     this.downEnemy(e);
+    this.strikingPerfect = false;
     this.bus.emit('strike:hit', { enemyId: e.id, chain: this.chain, perfect });
     if (perfect) {
       this.addGauge(T.gaugePerfectBonus);
@@ -853,6 +873,7 @@ export class Sim {
     e.hurtFlash = Math.max(0, e.hurtFlash - dt);
     e.attackCd = Math.max(0, e.attackCd - dt);
     e.markTimer = Math.max(0, e.markTimer - dt);
+    if (e.bossPart) return; // 보스가 위치를 정함
     const p = this.player;
 
     if (e.state === 'down') {
@@ -949,16 +970,25 @@ export class Sim {
     }
   }
 
+  /** 살아 있는 적에 닿으면 피격 (공격 중이 아니어도). 쓰러진 적·보스 균열은 제외 (보스는 몸으로 판정) */
   private checkEnemyHits(): void {
-    const p = this.player;
-    if (p.invuln > 0 || p.mode === 'strike' || this.diveTimer > 0) return;
     for (const e of this.enemies) {
-      if (e.state !== 'lunge') continue;
-      if (!overlaps(p, e)) continue;
+      if (e.state === 'down' || e.bossPart) continue;
+      if (!T.contactDamage && e.state !== 'lunge') continue;
+      if (!overlaps(this.player, e)) continue;
+      if (this.hurtPlayer(cx(e))) break;
+    }
+  }
+
+  /** 이단아가 피해를 받음 (무적·파고들기·다이빙 중이면 무시). 실제로 맞았으면 true */
+  private hurtPlayer(fromX: number): boolean {
+    const p = this.player;
+    if (p.invuln > 0 || p.mode === 'strike' || this.diveTimer > 0 || this.deathTimer > 0) return false;
+    {
       p.hp--;
       p.invuln = 0.9;
       p.hurtFlash = 0.25;
-      p.vx = Math.sign(cx(p) - cx(e) || 1) * 380;
+      p.vx = Math.sign(cx(p) - fromX || 1) * 380;
       p.vy = -420;
       p.mode = 'normal';
       this.hitstop = 0.05;
@@ -974,16 +1004,25 @@ export class Sim {
         this.bus.emit('player:hp', { hp: 0, maxHp: p.maxHp });
         this.bus.emit('player:death', {});
         if (this.combo > 0 || this.perfectMode) this.endCombo();
-        break;
+        return true;
       }
       if (p.hp <= 0) p.hp = p.maxHp; // 실험실이므로 바로 회복
       this.bus.emit('player:hp', { hp: p.hp, maxHp: p.maxHp });
       if (this.combo > 0) this.endCombo();
-      break;
+      return true;
     }
   }
 
   private downEnemy(e: Enemy): void {
+    if (e.bossPart) {
+      e.state = 'down';
+      e.fragment = 0;
+      e.perfectTimer = 0;
+      e.lockProgress = 0;
+      this.bus.emit('enemy:down', { enemyId: e.id });
+      this.onBossPartBroken(e);
+      return;
+    }
     if (this.mode === 'stage') {
       const set = this.killed.get(this.room.id) ?? new Set<number>();
       set.add(e.spawnIndex);
@@ -1032,12 +1071,13 @@ export class Sim {
       this.diveImpactDone = true;
       let count = 0;
       for (const e of this.enemies) {
-        if (e.state === 'down') continue;
+        if (e.state === 'down' || e.bossPart) continue;
         if (Math.abs(cx(e) - cx(this.player)) > 700) continue;
         this.burst(cx(e), cy(e), 24, 0x9b7bd4, 500);
         this.downEnemy(e);
         count++;
       }
+      if (this.boss && this.boss.state !== 'defeated' && Math.abs(cx(this.boss) - cx(this.player)) <= T.bossDiveRange) this.bossDiveHit();
       this.gauge = 0;
       this.shake = 20;
       this.hitstop = 0.12;
@@ -1058,6 +1098,308 @@ export class Sim {
 
   // ───────────────────────── 시선 · 인식 · 소리 ─────────────────────────
 
+  /** 스테이지 끝 (끝 지점 도착 또는 보스 격파). stage:clear는 한 번 */
+  private clearStage(): void {
+    if (this.cleared) return;
+    this.cleared = true;
+    this.endDive();
+    if (this.combo > 0 || this.perfectMode) this.endCombo();
+    this.bus.emit('stage:clear', { ...this.stats });
+  }
+
+  // ───────────────────────── 보스 ─────────────────────────
+
+  private spawnBoss(spec: BossSpec): void {
+    const b: BossData = {
+      name: spec.name,
+      x: spec.x - BOSS_W / 2, y: spec.y - BOSS_H, w: BOSS_W, h: BOSS_H, vx: 0, vy: 0, onGround: false, wallDir: 0,
+      hp: T.bossMaxHp, maxHp: T.bossMaxHp, phase: 1, state: 'intro', timer: T.bossIntroTime,
+      pattern: 'wave', patternCount: 0, facing: -1, hurtFlash: 0,
+      waveActive: false, waveX: 0, waveY: 0, waveRadius: 0, chargeDir: -1,
+    };
+    this.boss = b;
+    BOSS_PARTS.forEach((ref, i) => {
+      const e = this.makeEnemy({ x: 0, y: 0, kind: 'cracked', flying: true, patrol: 0 }, -1);
+      e.w = 26;
+      e.h = 26;
+      e.bossPart = ref.role;
+      e.partIndex = i;
+      e.attackCd = Infinity;
+      if (ref.role === 'core') e.state = 'down'; // 다운 중에만 나타남
+      this.enemies.push(e);
+    });
+    this.placeBossParts();
+    this.bus.emit('boss:start', { name: b.name, maxHp: b.maxHp });
+    this.bus.emit('boss:hp', { hp: b.hp, maxHp: b.maxHp });
+  }
+
+  private bossParts(): Enemy[] {
+    return this.enemies.filter((e) => e.bossPart);
+  }
+
+  /** 균열을 보스 몸에 붙입니다 (보스가 보는 방향에 따라 좌우 반전) */
+  private placeBossParts(): void {
+    const b = this.boss;
+    if (!b) return;
+    for (const e of this.bossParts()) {
+      const ref = BOSS_PARTS[e.partIndex];
+      e.x = cx(b) + ref.dx * -b.facing - e.w / 2;
+      e.y = cy(b) + ref.dy - e.h / 2;
+      e.vx = b.vx;
+      e.vy = 0;
+    }
+  }
+
+  private bossGap(b: BossData): number {
+    return b.phase === 2 ? T.bossPatternGap2 : T.bossPatternGap;
+  }
+
+  private updateBoss(dt: number): void {
+    const b = this.boss;
+    if (!b) return;
+    const p = this.player;
+    b.hurtFlash = Math.max(0, b.hurtFlash - dt);
+    b.timer -= dt;
+
+    if (b.state === 'defeated') {
+      b.vx = approach(b.vx, 0, 2000 * dt);
+      if (b.timer <= 0) this.clearStage();
+      return;
+    }
+
+    const dx = cx(p) - cx(b);
+    // 이단아가 파고드는 중에는 돌아서지 않음 (균열 위치가 좌우로 뒤집혀 목표가 순간 이동하지 않게)
+    const canTurn = p.mode !== 'strike';
+    const face = () => {
+      if (canTurn) b.facing = dx >= 0 ? 1 : -1;
+    };
+    switch (b.state) {
+      case 'intro':
+        face();
+        if (b.timer <= 0) this.bossToIdle(b);
+        break;
+      case 'idle':
+        face();
+        b.vx = Math.abs(dx) > 220 ? b.facing * T.bossMoveSpeed : approach(b.vx, 0, 800 * dt);
+        if (b.timer <= 0) {
+          // 페이즈 2는 파동 → 파동 → 돌진, 페이즈 1은 번갈아
+          const seq: ('wave' | 'charge')[] = b.phase === 2 ? ['wave', 'wave', 'charge'] : ['wave', 'charge'];
+          b.pattern = seq[b.patternCount % seq.length];
+          b.patternCount++;
+          b.state = 'telegraph';
+          b.timer = b.pattern === 'wave' ? T.bossWaveTelegraph : T.bossChargeTelegraph;
+          b.vx = 0;
+          this.bus.emit('boss:pattern', { pattern: b.pattern, step: 'telegraph' });
+        }
+        break;
+      case 'telegraph':
+        b.vx = 0;
+        if (b.pattern === 'charge') face();
+        if (b.timer <= 0) {
+          b.state = 'active';
+          if (b.pattern === 'wave') {
+            b.waveActive = true;
+            b.waveX = cx(b);
+            b.waveY = cy(b);
+            b.waveRadius = 0;
+            b.timer = 99;
+          } else {
+            b.chargeDir = b.facing;
+            b.timer = T.bossChargeMaxTime;
+          }
+          this.bus.emit('boss:pattern', { pattern: b.pattern, step: 'active' });
+        }
+        break;
+      case 'active':
+        if (b.pattern === 'wave') {
+          b.vx = 0;
+          if (this.updateBossWave(b, dt)) {
+            b.state = 'recover';
+            b.timer = T.bossWaveRecover;
+          }
+        } else {
+          b.vx = b.chargeDir * T.bossChargeSpeed;
+          if (b.wallDir === b.chargeDir || b.timer <= 0) {
+            b.vx = 0;
+            b.state = 'recover';
+            b.timer = T.bossChargeRecover;
+            this.shake = Math.max(this.shake, 12);
+          }
+        }
+        break;
+      case 'recover':
+        b.vx = approach(b.vx, 0, 1600 * dt);
+        if (b.timer <= 0) this.bossToIdle(b);
+        break;
+      case 'down':
+        b.vx = approach(b.vx, 0, 1600 * dt);
+        if (b.timer <= 0) this.bossRecoverFromDown(b);
+        break;
+    }
+
+    // 보스는 발판·장애물을 통과해 바닥 높이로만 움직임. 방 바깥벽(좌우 40px)에서만 멈춤
+    b.x += b.vx * dt;
+    const minX = 40;
+    const maxX = this.world.width - 40 - b.w;
+    b.wallDir = 0;
+    if (b.x <= minX) {
+      b.x = minX;
+      b.wallDir = -1;
+    } else if (b.x >= maxX) {
+      b.x = maxX;
+      b.wallDir = 1;
+    }
+    b.vy = 0;
+    b.onGround = true;
+    this.placeBossParts();
+
+    // 몸에 닿으면 피격 (등장·다운 중에는 제외 — 다운 중 핵심 균열을 노릴 수 있게)
+    const touching = b.state !== 'intro' && b.state !== 'down';
+    if (touching && (T.contactDamage || (b.state === 'active' && b.pattern === 'charge')) && overlaps(p, b)) this.hurtPlayer(cx(b));
+  }
+
+  /** 보스 공격을 아슬아슬하게 피하는 대시인지 (회피 성공 → 록온 단축 보너스) */
+  private bossDodgeable(): boolean {
+    const b = this.boss;
+    if (!b) return false;
+    const p = this.player;
+    if (b.waveActive) {
+      const dp = Math.hypot(cx(p) - b.waveX, cy(p) - b.waveY);
+      if (Math.abs(dp - b.waveRadius) < T.bossWaveWidth / 2 + T.bossWaveDodgeMargin) return true;
+    }
+    const charging = b.pattern === 'charge' && (b.state === 'active' || (b.state === 'telegraph' && b.timer < 0.2));
+    return charging && Math.abs(cx(b) - cx(p)) < T.perfectDodgeRange + b.w / 2;
+  }
+
+  private bossToIdle(b: BossData): void {
+    b.state = 'idle';
+    b.timer = this.bossGap(b);
+  }
+
+  /** 기억 소거 파동: 고리가 퍼지며 닿은 열린 조각을 닫고 록온 진행을 지움. 끝나면 true */
+  private updateBossWave(b: BossData, dt: number): boolean {
+    const speed = T.bossWaveSpeed * (b.phase === 2 ? T.bossPhase2WaveBoost : 1);
+    const r0 = b.waveRadius;
+    b.waveRadius += speed * dt;
+    const half = T.bossWaveWidth / 2;
+    // 이번 스텝에 고리(두께 포함)가 쓸고 지나간 구간 [r0 - half, r1 + half] 안이면 닿은 것 (빠르고 얇아도 건너뛰지 않음)
+    const swept = (d: number, extra = 0) => d >= r0 - half - extra && d <= b.waveRadius + half + extra;
+    for (const e of this.enemies) {
+      if (e.state === 'down') continue;
+      const d = Math.hypot(cx(e) - b.waveX, cy(e) - b.waveY);
+      if (!swept(d)) continue;
+      if (e.fragment > 0) {
+        e.fragment = 0;
+        e.perfectTimer = 0;
+        this.bus.emit('fragment:close', { enemyId: e.id, missed: false });
+      }
+      e.lockProgress = 0;
+    }
+    const p = this.player;
+    const dp = Math.hypot(cx(p) - b.waveX, cy(p) - b.waveY);
+    if (swept(dp, p.w / 2)) this.hurtPlayer(b.waveX);
+    if (b.waveRadius >= T.bossWaveMaxRadius) {
+      b.waveActive = false;
+      return true;
+    }
+    return false;
+  }
+
+  private onBossPartBroken(e: Enemy): void {
+    const b = this.boss;
+    if (!b || b.state === 'defeated') return;
+    if (e.bossPart === 'weak') {
+      this.damageBoss(this.strikingPerfect ? T.bossPerfectDamage : T.bossWeakDamage);
+      const weak = this.bossParts().filter((x) => x.bossPart === 'weak');
+      const broken = weak.filter((x) => x.state === 'down').length;
+      this.bus.emit('boss:weakpoint', { broken, total: weak.length });
+      if (broken === weak.length && b.hp > 0 && b.state !== 'down') this.bossDown(b);
+    } else {
+      this.damageBoss(T.bossCoreDamage * (this.strikingPerfect ? T.bossCorePerfectMult : 1));
+    }
+  }
+
+  private damageBoss(amount: number): void {
+    const b = this.boss;
+    if (!b || b.state === 'defeated') return;
+    b.hp = Math.max(0, b.hp - amount);
+    b.hurtFlash = 0.15;
+    this.bus.emit('boss:hp', { hp: b.hp, maxHp: b.maxHp });
+    if (b.phase === 1 && b.hp <= b.maxHp / 2 && b.hp > 0) {
+      b.phase = 2;
+      this.bus.emit('boss:phase', { phase: 2 });
+    }
+    if (b.hp <= 0) this.defeatBoss(b);
+  }
+
+  /** 약점 균열 3곳이 모두 끊김 → 다운. 핵심 균열이 다운 시간 동안 열림 */
+  private bossDown(b: BossData): void {
+    b.state = 'down';
+    b.timer = T.bossDownTime;
+    b.vx = 0;
+    b.waveActive = false;
+    const core = this.bossParts().find((x) => x.bossPart === 'core');
+    if (core) {
+      core.state = 'recover';
+      core.timer = Infinity;
+      this.placeBossParts();
+      this.openFragment(core, false, T.bossDownTime);
+    }
+    this.shake = Math.max(this.shake, 16);
+    this.bus.emit('boss:down', { duration: T.bossDownTime });
+  }
+
+  private bossRecoverFromDown(b: BossData): void {
+    // 시간 안에 치지 못한 핵심 균열은 일반 조각을 놓친 것과 같이 처리 (fragment:close missed, 연쇄·퍼펙트 종료)
+    const core = this.bossParts().find((x) => x.bossPart === 'core');
+    if (core && core.state !== 'down' && core.fragment > 0) {
+      core.fragment = 0;
+      core.perfectTimer = 0;
+      this.onFragmentMissed(core);
+    }
+    for (const e of this.bossParts()) {
+      e.fragment = 0;
+      e.perfectTimer = 0;
+      e.lockProgress = 0;
+      if (e.bossPart === 'core') e.state = 'down';
+      else {
+        e.state = 'recover';
+        e.timer = Infinity;
+      }
+    }
+    this.bus.emit('boss:recover', {});
+    this.bossToIdle(b);
+  }
+
+  private defeatBoss(b: BossData): void {
+    b.state = 'defeated';
+    b.timer = T.bossDefeatDelay;
+    b.waveActive = false;
+    for (const e of this.bossParts()) {
+      e.state = 'down';
+      e.fragment = 0;
+      e.lockProgress = 0;
+    }
+    this.hitstop = Math.max(this.hitstop, 0.18);
+    this.shake = 24;
+    this.burst(cx(b), cy(b), 40, 0xe8b04b, 700);
+    this.burst(cx(b), cy(b), 24, 0xffffff, 500);
+    this.bus.emit('boss:defeat', { name: b.name });
+  }
+
+  /** 고스트 다이빙: 다운 중이면 큰 피해, 아니면 약점 균열을 모두 끊음 (→ 다운) */
+  private bossDiveHit(): void {
+    const b = this.boss;
+    if (!b) return;
+    if (b.state === 'down') {
+      this.damageBoss(T.bossDiveDamage);
+      return;
+    }
+    for (const e of this.bossParts()) {
+      if (e.bossPart === 'weak' && e.state !== 'down') this.downEnemy(e);
+    }
+  }
+
   /** 출입구·체크포인트·끝 지점. 방이 바뀌었거나 끝에 도착했으면 true */
   private checkStageTriggers(): boolean {
     const p = this.player;
@@ -1069,10 +1411,7 @@ export class Sim {
       if (overlaps(p, cp) && this.checkpoint.id !== cp.id) this.setCheckpoint(cp);
     }
     if (this.room.goal && inside(this.room.goal)) {
-      this.cleared = true;
-      this.endDive();
-      if (this.combo > 0 || this.perfectMode) this.endCombo();
-      this.bus.emit('stage:clear', { ...this.stats });
+      this.clearStage();
       return true;
     }
     for (const ex of this.room.exits ?? []) {
@@ -1143,7 +1482,7 @@ export class Sim {
     // 퍼펙트 연쇄 중에는 시선 제한이 없으므로 원뿔을 그리지 않습니다.
     p.gazeFan = this.perfectMode ? [] : sightFan(pe, p.gaze, (T.gazeHalfAngle * Math.PI) / 180, T.lockRange, this.chainActive() ? [] : solids, 24);
     for (const e of this.enemies) {
-      if (e.state === 'down') {
+      if (e.state === 'down' || e.bossPart) {
         e.viewFan = [];
         continue;
       }
@@ -1199,7 +1538,7 @@ export class Sim {
     const shape = soundShape(x, y, radius, wall, solids, SOUND_RAYS);
     this.sounds.push({ x, y, radius, kind, life: T.soundLife, maxLife: T.soundLife, points: shape });
     for (const e of this.enemies) {
-      if (e.state === 'down' || e.awareness === 'alert') continue;
+      if (e.state === 'down' || e.awareness === 'alert' || e.bossPart) continue;
       if (!hears(shape, cx(e), cy(e))) continue;
       const wasIdle = e.awareness === 'idle';
       e.awareness = 'heard';

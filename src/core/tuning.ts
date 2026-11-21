@@ -64,6 +64,7 @@ export const DEFAULT_TUNING = {
   gaugePerNeedle: 3,
 
   // ── 적 ──
+  contactDamage: true, // 적·보스 몸에 닿기만 해도 피격 (끄면 공격 중일 때만)
   enemyAggroRange: 170, // 발각된 뒤 공격을 시작하는 거리
   enemyTelegraph: 0.55,
   enemyCounterTelegraph: 0.28,
@@ -99,6 +100,32 @@ export const DEFAULT_TUNING = {
   shake: 7,
   strikeShakeGrowth: 1.5, // 연쇄가 이어질수록 흔들림 증가
   diveSlowmo: 0.15,
+
+  // ── 보스 (챕터 1 균열형) ──
+  bossMaxHp: 25,
+  bossWeakDamage: 1, // 약점 균열 한 곳
+  bossPerfectDamage: 2, // 약점 균열 퍼펙트
+  bossCoreDamage: 4, // 다운 중 핵심 균열
+  bossCorePerfectMult: 1.5, // 핵심 균열 퍼펙트 피해 배율
+  bossDiveDamage: 5, // 다운 중 고스트 다이빙
+  bossDiveRange: 900, // 고스트 다이빙이 보스에 닿는 가로 거리 (px)
+  bossDownTime: 3, // 다운 시간 = 핵심 균열이 열려 있는 시간
+  bossIntroTime: 1.5,
+  bossMoveSpeed: 70,
+  bossPatternGap: 2.2, // 패턴 사이 쉬는 시간 (페이즈 1)
+  bossPatternGap2: 1.3, // (페이즈 2)
+  bossWaveTelegraph: 0.9, // 기억 소거 파동 예고
+  bossWaveSpeed: 520, // 파동이 퍼지는 속도
+  bossPhase2WaveBoost: 1.35,
+  bossWaveWidth: 44, // 파동 고리 두께 (이 안의 조각이 닫힘)
+  bossWaveMaxRadius: 1100,
+  bossWaveDodgeMargin: 60, // 파동 고리 밖 이 거리 안에서 대시하면 회피 성공 (px)
+  bossWaveRecover: 0.5,
+  bossChargeTelegraph: 0.7, // 돌진 예고
+  bossChargeSpeed: 900,
+  bossChargeMaxTime: 1.6,
+  bossChargeRecover: 1.0, // 돌진 뒤 빈틈
+  bossDefeatDelay: 2.2, // 격파 연출 뒤 stage:clear까지
 
   // ── 타격 화면 효과 ──
   fxZoomPunch: 0.06, // 타격 순간 화면 확대 (1 + 값)

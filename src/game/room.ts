@@ -1,3 +1,4 @@
+import type { BossSpec } from './boss';
 import type { Rect } from './physics';
 
 /**
@@ -39,6 +40,8 @@ export interface RoomDef {
   checkpoints?: CheckpointDef[];
   /** 스테이지 끝 지점 (닿으면 stage:clear) */
   goal?: Rect;
+  /** 보스방: 들어오면 보스가 나오고, 쓰러뜨리면 stage:clear */
+  boss?: BossSpec;
 }
 
 export interface StageDef {
