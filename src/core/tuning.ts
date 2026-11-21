@@ -64,6 +64,7 @@ export const DEFAULT_TUNING = {
   gaugePerNeedle: 3,
 
   // ── 적 ──
+  contactDamage: true, // 적·보스 몸에 닿기만 해도 피격 (끄면 공격 중일 때만)
   enemyAggroRange: 170, // 발각된 뒤 공격을 시작하는 거리
   enemyTelegraph: 0.55,
   enemyCounterTelegraph: 0.28,

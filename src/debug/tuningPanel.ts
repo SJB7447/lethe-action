@@ -180,6 +180,7 @@ export function initTuningPanel(bus: EventBus, onRespawn: () => void): Pane {
   const modes = pane.addFolder({ title: '모드', expanded: true });
   modes.addBinding(tuning, 'assist', { label: '자동 보조' }).on('change', (ev) => bus.emit('mode:change', { assist: ev.value }));
   modes.addBinding(tuning, 'autoRespawn', { label: '적 자동 재생성' });
+  modes.addBinding(tuning, 'contactDamage', { label: '닿으면 피격' });
   modes.addBinding(tuning, 'showDebug', { label: '범위·판정 박스' });
   modes.addBinding(tuning, 'showArt', { label: '그래픽 표시' });
   modes.addBinding(tuning, 'showPerception', { label: '시선·소리 범위' });

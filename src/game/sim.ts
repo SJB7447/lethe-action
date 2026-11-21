@@ -969,9 +969,11 @@ export class Sim {
     }
   }
 
+  /** 살아 있는 적에 닿으면 피격 (공격 중이 아니어도). 쓰러진 적·보스 균열은 제외 (보스는 몸으로 판정) */
   private checkEnemyHits(): void {
     for (const e of this.enemies) {
-      if (e.state !== 'lunge') continue;
+      if (e.state === 'down' || e.bossPart) continue;
+      if (!T.contactDamage && e.state !== 'lunge') continue;
       if (!overlaps(this.player, e)) continue;
       if (this.hurtPlayer(cx(e))) break;
     }
@@ -1221,8 +1223,6 @@ export class Sim {
             b.state = 'recover';
             b.timer = T.bossChargeRecover;
             this.shake = Math.max(this.shake, 12);
-          } else if (overlaps(p, b)) {
-            this.hurtPlayer(cx(b));
           }
         }
         break;
@@ -1236,9 +1236,25 @@ export class Sim {
         break;
     }
 
-    b.vy = Math.min(b.vy + T.gravity * dt, T.maxFall);
-    this.world.move(b, dt);
+    // 보스는 발판·장애물을 통과해 바닥 높이로만 움직임. 방 바깥벽(좌우 40px)에서만 멈춤
+    b.x += b.vx * dt;
+    const minX = 40;
+    const maxX = this.world.width - 40 - b.w;
+    b.wallDir = 0;
+    if (b.x <= minX) {
+      b.x = minX;
+      b.wallDir = -1;
+    } else if (b.x >= maxX) {
+      b.x = maxX;
+      b.wallDir = 1;
+    }
+    b.vy = 0;
+    b.onGround = true;
     this.placeBossParts();
+
+    // 몸에 닿으면 피격 (등장·다운 중에는 제외 — 다운 중 핵심 균열을 노릴 수 있게)
+    const touching = b.state !== 'intro' && b.state !== 'down';
+    if (touching && (T.contactDamage || (b.state === 'active' && b.pattern === 'charge')) && overlaps(p, b)) this.hurtPlayer(cx(b));
   }
 
   /** 보스 공격을 아슬아슬하게 피하는 대시인지 (회피 성공 → 록온 단축 보너스) */
