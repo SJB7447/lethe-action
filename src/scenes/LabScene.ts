@@ -42,9 +42,6 @@ export class LabScene extends Phaser.Scene {
   private realTime = 0;
   private fx!: HitFx;
   private snapCamera = true;
-  private roomLabel!: Phaser.GameObjects.Text;
-  private noticeLabel!: Phaser.GameObjects.Text;
-  private roomLabelTimer = 0;
 
   constructor(
     private bus: EventBus,
@@ -72,26 +69,10 @@ export class LabScene extends Phaser.Scene {
     this.debugG = this.add.graphics().setDepth(DEBUG_DEPTH);
     this.fx = new HitFx(this, this.bus, () => this.sim);
 
-    // 임시 글자 (Antigravity HUD가 room:enter / stage:clear로 대체할 때까지)
-    const style = { fontFamily: 'system-ui, sans-serif', color: '#d8dcf0' };
-    this.roomLabel = this.add.text(this.scale.width / 2, 92, '', { ...style, fontSize: '20px' }).setOrigin(0.5).setScrollFactor(0).setDepth(950).setAlpha(0);
-    this.noticeLabel = this.add.text(this.scale.width / 2, this.scale.height / 2, '', { ...style, fontSize: '22px', align: 'center' }).setOrigin(0.5).setScrollFactor(0).setDepth(950);
-    this.bus.on('room:enter', ({ name }) => {
+    // 방 이름·사망·기록 표시는 Antigravity HUD(src/ui)가 이벤트로 그립니다. 씬은 카메라만 처리.
+    this.bus.on('room:enter', () => {
       this.snapCamera = true;
-      this.roomLabel.setText(name);
-      this.roomLabelTimer = 2;
     });
-    this.bus.on('stage:clear', (s) => {
-      this.noticeLabel.setText(
-        `스테이지 끝 — 보스·컷신은 준비 중\n\n시간 ${s.time.toFixed(1)}초 · 최대 연쇄 ${s.maxCombo} · 퍼펙트 ${s.perfects} · 발각 ${s.spotted} · 사망 ${s.deaths}\n\nR: 처음부터`,
-      );
-    });
-    this.bus.on('room:reset', () => this.noticeLabel.setText(''));
-    // 시작 방은 이 구독보다 먼저 불러왔으므로 직접 표시
-    if (this.sim.mode === 'stage') {
-      this.roomLabel.setText(this.sim.room.name);
-      this.roomLabelTimer = 2;
-    }
     try {
       this.art.init?.({ scene: this, layers: this.layers });
     } catch (err) {
@@ -120,8 +101,6 @@ export class LabScene extends Phaser.Scene {
     this.input_.endFrame();
     this.fx.update(realDt);
     this.updateCamera(realDt);
-    this.roomLabelTimer = Math.max(0, this.roomLabelTimer - realDt);
-    this.roomLabel.setAlpha(Math.min(1, this.roomLabelTimer));
     // 이번 프레임의 확대·밀림을 카메라 행렬·worldView에 바로 반영한 뒤,
     // 그 카메라 기준으로 마우스·화면 범위를 다시 읽고 시선 안내를 갱신합니다.
     // → 그려지는 시선 원뿔과 다음 프레임의 판정이 모두 이 화면을 기준으로 합니다.
