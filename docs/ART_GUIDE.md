@@ -1,6 +1,7 @@
-# 그래픽 지침서 — Antigravity + Gemini 4 Hydrogen
+# 그래픽 지침서 — Antigravity (Gemini 4)
 
-레테 2D 액션의 그래픽을 Antigravity에서 **Gemini 4 Hydrogen** 모델로 작업할 때 따르는 규칙입니다.
+레테 2D 액션의 그래픽을 Antigravity에서 Gemini 4 모델로 작업할 때 따르는 규칙입니다.
+현재 모델은 **Gemini 4 Neon** (PR #14부터, 그 전은 Gemini 4 Hydrogen). 모델이 바뀌어도 이 지침은 그대로 적용합니다.
 공통 규칙은 `AGENTS.md`, 역할은 `docs/ROLES.md`가 우선합니다.
 
 > 이 지침은 특정 모델 기능에 기대지 않습니다. 이후 모델을 바꿔도 그대로 적용됩니다.
@@ -9,7 +10,7 @@
 
 ## 1. 왜 이렇게 나누나: "코드로 그리는 그림"을 주력으로
 
-Hydrogen 같은 언어 모델의 강점은 **그림을 코드로 짜는 일**입니다(SVG, Phaser Graphics, 셰이더, 파티클, CSS).
+Gemini 같은 언어 모델의 강점은 **그림을 코드로 짜는 일**입니다(SVG, Phaser Graphics, 셰이더, 파티클, CSS).
 이 방식은 기획안 7장의 AI 에셋 리스크를 그대로 피합니다.
 
 | 기획안의 리스크 | 코드로 그리면 |
@@ -148,10 +149,11 @@ Claude 담당 `src/scenes/hitFx.ts`가 그림 층 위(depth 900)에 그립니다
 
 ```
 | 날짜 | 파일 | 도구·모델 | 무엇을 만들었나 | 사람이 정한 것 / 고친 것 |
-| 2026-11-14 | src/art/fragment.ts | Antigravity + Gemini 4 Hydrogen | 조각 펄스·균열선 그리기 코드 | 형태 규칙, 색, 펄스 속도 지정 / 균열선 각도 수정 |
+| 2026-11-14 | src/art/fragment.ts | Antigravity + Gemini 4 Neon | 조각 펄스·균열선 그리기 코드 | 형태 규칙, 색, 펄스 속도 지정 / 균열선 각도 수정 |
 ```
 
 "사람이 정한 것" 칸이 저작권 판단의 근거가 됩니다. 비워 두지 않습니다.
+"도구·모델" 칸에는 실제로 쓴 모델명을 적습니다 (예: `Antigravity + Gemini 4 Neon`). 모르면 추측하지 말고 기획자에게 확인합니다.
 
 ---
 
@@ -178,7 +180,7 @@ Claude 담당 `src/scenes/hitFx.ts`가 그림 층 위(depth 900)에 그립니다
 
 ---
 
-## 9. Hydrogen에게 일을 줄 때 쓰는 틀
+## 9. Antigravity(Gemini)에게 일을 줄 때 쓰는 틀
 
 ```
 docs/ART_GUIDE.md, AGENTS.md, docs/ROLES.md를 먼저 읽어.
