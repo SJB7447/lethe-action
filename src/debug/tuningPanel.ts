@@ -139,6 +139,12 @@ const GROUPS: { title: string; expanded: boolean; items: Range[] }[] = [
       ['fxMissFlash', '놓침 가장자리', 0, 1.5, 0.05],
       ['fxPerfectBoost', '퍼펙트 효과 배수', 1, 3, 0.05],
       ['fxPerfectGlow', '퍼펙트 연쇄 가장자리', 0, 1.5, 0.05],
+      ['fxZoomTime', '확대가 사라지는 시간', 0.02, 1, 0.01],
+      ['fxKickTime', '밀림이 사라지는 시간', 0.02, 1, 0.01],
+      ['fxFlashTime', '번쩍임이 사라지는 시간', 0.02, 1, 0.01],
+      ['fxLinesTime', '집중선 지속 시간', 0.02, 1, 0.01],
+      ['fxEdgeTime', '가장자리가 사라지는 시간', 0.05, 2, 0.01],
+      ['fxTunnelEase', '터널 켜짐·꺼짐 시간', 0.02, 0.6, 0.01],
     ],
   },
 ];

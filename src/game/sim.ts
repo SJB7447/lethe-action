@@ -183,7 +183,10 @@ export class Sim {
     this.particles = [];
     this.ghosts = [];
     this.sounds = [];
-    this.perfectMode = false;
+    if (this.perfectMode) {
+      this.perfectMode = false;
+      this.bus.emit('perfect:end', {});
+    }
     this.gauge = 0;
     this.combo = 0;
     this.chain = 0;
@@ -213,6 +216,12 @@ export class Sim {
   frame(realDt: number): void {
     this.updateGaze();
     this.advance(realDt);
+    this.updateFans();
+  }
+
+  /** 시뮬레이션은 진행하지 않고, 지금 aimWorld 기준으로 시선과 원뿔 그림만 다시 계산합니다. */
+  refreshGuides(): void {
+    this.updateGaze();
     this.updateFans();
   }
 
@@ -603,7 +612,8 @@ export class Sim {
       const dx = cx(e) - cx(p);
       const dy = cy(e) - cy(p);
       const d = Math.hypot(dx, dy);
-      if (d > T.lockRange * 1.3) continue;
+      // 평소엔 록온 거리 근처까지. 퍼펙트 연쇄 중엔 화면 안이면 거리와 상관없이
+      if (d > T.lockRange * 1.3 && !(this.perfectMode && this.onScreen(e))) continue;
       // 시선(없으면 입력 방향)과 같은 쪽 적을 우선
       let dirBonus = 0;
       if (p.gazeActive) dirBonus = ((dx * Math.cos(p.gaze) + dy * Math.sin(p.gaze)) / (d || 1)) * 120;
@@ -621,7 +631,8 @@ export class Sim {
     const p = this.player;
     p.mode = 'strike';
     p.strikeTarget = e;
-    p.strikeTimer = 0.6;
+    // 먼 대상(퍼펙트 연쇄)까지 도달할 수 있게 이동 시간을 거리에 맞춤
+    p.strikeTimer = Math.max(0.6, Math.hypot(cx(e) - cx(p), cy(e) - cy(p)) / T.chainSpeed + 0.2);
     p.strikePerfect = e.perfectTimer > 0; // 퍼펙트 시간 안에 공격을 시작했는지
     p.invuln = Math.max(p.invuln, 0.3);
     this.bus.emit('strike:start', { enemyId: e.id, chain: this.chain + 1 });

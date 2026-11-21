@@ -94,8 +94,8 @@ export class HitFx {
       this.lines.push({
         x: e.x + e.w / 2 - cam.scrollX,
         y: e.y + e.h / 2 - cam.scrollY,
-        life: 0.16,
-        maxLife: 0.16,
+        life: T.fxLinesTime,
+        maxLife: T.fxLinesTime,
         count: Math.round(T.fxImpactLines),
         seed: Math.random() * Math.PI * 2,
         power: k,
@@ -107,13 +107,13 @@ export class HitFx {
   update(realDt: number): void {
     const sim = this.getSim();
     this.time += realDt;
-    this.zoom *= Math.exp(-realDt * 16);
-    this.kickX *= Math.exp(-realDt * 18);
-    this.kickY *= Math.exp(-realDt * 18);
-    this.flash *= Math.exp(-realDt * 22);
-    this.edge *= Math.exp(-realDt * 7);
+    this.zoom *= fade(realDt, T.fxZoomTime);
+    this.kickX *= fade(realDt, T.fxKickTime);
+    this.kickY *= fade(realDt, T.fxKickTime);
+    this.flash *= fade(realDt, T.fxFlashTime);
+    this.edge *= fade(realDt, T.fxEdgeTime);
     const tunnelTarget = sim.player.mode === 'strike' ? T.fxStrikeTunnel : 0;
-    this.tunnel += (tunnelTarget - this.tunnel) * (1 - Math.exp(-realDt * 25));
+    this.tunnel += (tunnelTarget - this.tunnel) * (1 - fade(realDt, T.fxTunnelEase));
     for (const l of this.lines) l.life -= realDt;
     this.lines = this.lines.filter((l) => l.life > 0);
     if (this.zoom < 0.0005) this.zoom = 0;
@@ -153,6 +153,11 @@ export class HitFx {
       g.fillRect(-40, -40, w + 80, h + 80);
     }
   }
+}
+
+/** time초 뒤 약 5%로 줄어드는 지수 감쇠 배율 */
+function fade(dt: number, time: number): number {
+  return Math.exp((-3 * dt) / Math.max(0.001, time));
 }
 
 /** 가장자리에서 안쪽으로 옅어지는 테두리 */

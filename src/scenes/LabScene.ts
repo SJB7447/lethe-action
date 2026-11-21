@@ -74,7 +74,11 @@ export class LabScene extends Phaser.Scene {
     const p = this.sim.player;
     this.camX = cx(p) - this.scale.width / 2;
     this.camY = cy(p) - this.scale.height / 2;
-    (window as unknown as { __sim: Sim }).__sim = this.sim; // 디버그·테스트용
+    this.cameras.main.setScroll(this.camX, this.camY);
+    this.cameras.main.preRender();
+    this.syncView();
+    (window as unknown as { __sim: Sim; __lab: LabScene }).__sim = this.sim; // 디버그·테스트용
+    (window as unknown as { __lab: LabScene }).__lab = this;
   }
 
   update(_time: number, delta: number): void {
@@ -82,18 +86,29 @@ export class LabScene extends Phaser.Scene {
     this.realTime += realDt;
     this.input_.poll();
     if (this.input_.consume('debug')) T.showDebug = !T.showDebug;
-    // 마우스가 가리키는 월드 좌표 (카메라가 움직여도 매 프레임 다시 계산)
-    const ptr = this.input.activePointer;
-    const world = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
-    this.sim.aimWorld = { x: world.x, y: world.y };
-    const wv = this.cameras.main.worldView;
-    this.sim.viewRect = { x: wv.x, y: wv.y, w: wv.width, h: wv.height };
+    // 판정은 지금 화면에 보이는 카메라 기준 (지난 프레임 끝에 syncView로 읽은 마우스·화면 범위)
     this.sim.frame(realDt);
     this.input_.endFrame();
     this.fx.update(realDt);
     this.updateCamera(realDt);
+    // 이번 프레임의 확대·밀림을 카메라 행렬·worldView에 바로 반영한 뒤,
+    // 그 카메라 기준으로 마우스·화면 범위를 다시 읽고 시선 안내를 갱신합니다.
+    // → 그려지는 시선 원뿔과 다음 프레임의 판정이 모두 이 화면을 기준으로 합니다.
+    this.cameras.main.preRender();
+    this.syncView();
+    this.sim.refreshGuides();
     this.draw();
     this.fx.draw();
+  }
+
+  /** 지금 카메라 기준으로 마우스가 가리키는 월드 좌표와 화면에 보이는 월드 영역을 Sim에 넘깁니다. */
+  private syncView(): void {
+    const cam = this.cameras.main;
+    const ptr = this.input.activePointer;
+    const world = cam.getWorldPoint(ptr.x, ptr.y);
+    this.sim.aimWorld = { x: world.x, y: world.y };
+    const wv = cam.worldView;
+    this.sim.viewRect = { x: wv.x, y: wv.y, w: wv.width, h: wv.height };
   }
 
   private updateCamera(dt: number): void {

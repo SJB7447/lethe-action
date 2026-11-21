@@ -110,6 +110,13 @@ export const DEFAULT_TUNING = {
   fxMissFlash: 0.7, // 조각을 놓쳤을 때 가장자리 크림슨
   fxPerfectBoost: 1.6, // 퍼펙트 타격 효과 배수
   fxPerfectGlow: 0.45, // 퍼펙트 연쇄 중 가장자리 흰빛
+  // 효과가 사라지는 시간 (s, 거의 사라질 때까지). 실제 시간 기준이라 히트스톱 중에도 흐름
+  fxZoomTime: 0.19,
+  fxKickTime: 0.17,
+  fxFlashTime: 0.14,
+  fxLinesTime: 0.16,
+  fxEdgeTime: 0.43,
+  fxTunnelEase: 0.12, // 파고들기 터널이 켜지고 꺼지는 시간
 
   // ── 모드 ──
   assist: false,
