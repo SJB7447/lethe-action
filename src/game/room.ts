@@ -31,7 +31,7 @@ export interface RoomDef {
   name: string; // 화면에 보여 줄 이름
   width: number;
   height: number;
-  /** 이름 붙은 시작 위치. 'start'는 방에 처음 놓일 때 */
+  /** 이름 붙은 시작 위치 (이단아의 발 중앙 좌표). 'start'는 방에 처음 놓일 때 */
   entries: Record<string, { x: number; y: number }>;
   solids: Rect[];
   enemies: EnemySpawn[];
@@ -54,7 +54,7 @@ export const LAB_ROOM: RoomDef = {
   name: '조작감 실험실',
   width: 2400,
   height: 900,
-  entries: { start: { x: 160, y: 700 } },
+  entries: { start: { x: 171, y: 740 } }, // 발 중앙 (예전 왼쪽 위 160, 700과 같은 위치)
   solids: [
     // 바닥과 외벽
     { x: 0, y: 860, w: 2400, h: 40 },

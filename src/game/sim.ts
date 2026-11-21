@@ -213,10 +213,9 @@ export class Sim {
     this.stats = { time: 0, deaths: 0, maxCombo: 0, perfects: 0, spotted: 0 };
     this.cleared = false;
     this.deathTimer = 0;
+    this.endDive();
     this.player = this.makePlayer();
     this.gauge = 0;
-    this.diveTimer = 0;
-    this.timeScale = 1;
     this.loadRoom(start.room, start.entry);
     this.bus.emit('room:reset', {});
     this.bus.emit('gauge:change', { value: 0, max: GAUGE_MAX });
@@ -240,6 +239,7 @@ export class Sim {
   /** 방을 불러오고 이단아를 입구에 둡니다. 체력·게이지는 유지, 연쇄는 끊깁니다. */
   private loadRoom(roomId: string, entry: string): void {
     const room = this.findRoom(roomId);
+    this.endDive(); // 방이 바뀌면 진행 중인 다이빙 연출도 끝냄
     this.room = room;
     this.world.load(room.width, room.height, room.solids);
     const dead = this.killed.get(room.id) ?? new Set<number>();
@@ -258,7 +258,7 @@ export class Sim {
     p.strikeTarget = null;
     this.world.depenetrate(p);
     this.wasGrounded = true;
-    this.bus.emit('room:enter', { roomId: room.id, name: room.name });
+    if (this.mode === 'stage') this.bus.emit('room:enter', { roomId: room.id, name: room.name });
   }
 
   /** 사망 또는 R: 마지막 체크포인트에서 다시. 쓰러뜨린 적은 모두 돌아옵니다. */
@@ -266,9 +266,8 @@ export class Sim {
     const gauge = this.gauge;
     this.killed.clear();
     this.deathTimer = 0;
+    this.endDive();
     this.player = this.makePlayer();
-    this.diveTimer = 0;
-    this.timeScale = 1;
     this.gauge = gauge;
     this.loadRoom(this.checkpoint.room, this.checkpoint.entry);
     this.bus.emit('player:respawn', {});
@@ -359,7 +358,7 @@ export class Sim {
       this.step(FIXED_DT);
       this.accumulator -= FIXED_DT;
       steps++;
-      if (this.hitstop > 0) {
+      if (this.hitstop > 0 || this.cleared || this.deathTimer > 0) {
         this.accumulator = 0;
         break;
       }
@@ -1009,6 +1008,14 @@ export class Sim {
     if (before < GAUGE_MAX && this.gauge >= GAUGE_MAX) this.bus.emit('dive:ready', {});
   }
 
+  /** 진행 중인 고스트 다이빙을 끝냅니다 (상태와 dive:end를 함께 정리). */
+  private endDive(): void {
+    if (this.diveTimer <= 0) return;
+    this.diveTimer = 0;
+    this.timeScale = 1;
+    this.bus.emit('dive:end', {});
+  }
+
   private tryDive(): void {
     if (this.gauge < GAUGE_MAX || this.diveTimer > 0) return;
     this.diveTimer = 1.4;
@@ -1036,6 +1043,7 @@ export class Sim {
       this.hitstop = 0.12;
       this.timeScale = 1;
       this.combo += count;
+      this.stats.maxCombo = Math.max(this.stats.maxCombo, this.combo);
       this.comboTimer = T.comboTimeout;
       this.emitSound(cx(this.player), cy(this.player), T.soundDive, 'dive');
       this.bus.emit('dive:impact', { count });
@@ -1043,9 +1051,8 @@ export class Sim {
       this.bus.emit('combo:change', { count: this.combo });
     }
     if (this.diveTimer <= 0) {
-      this.diveTimer = 0;
-      this.timeScale = 1;
-      this.bus.emit('dive:end', {});
+      this.diveTimer = 0.0001; // endDive가 끝내도록
+      this.endDive();
     }
   }
 
@@ -1063,6 +1070,7 @@ export class Sim {
     }
     if (this.room.goal && inside(this.room.goal)) {
       this.cleared = true;
+      this.endDive();
       if (this.combo > 0 || this.perfectMode) this.endCombo();
       this.bus.emit('stage:clear', { ...this.stats });
       return true;
@@ -1080,8 +1088,8 @@ export class Sim {
     this.checkpoint = { id: cp.id, room: this.room.id, entry: cp.entry };
     // 체크포인트에서 체력 회복
     this.player.hp = this.player.maxHp;
-    this.bus.emit('player:hp', { hp: this.player.hp, maxHp: this.player.maxHp });
     this.bus.emit('checkpoint', { id: cp.id, roomId: this.room.id });
+    this.bus.emit('player:hp', { hp: this.player.hp, maxHp: this.player.maxHp });
   }
 
   /** 적이 화면 안에 있는지 (화면 정보가 없으면 참) */
