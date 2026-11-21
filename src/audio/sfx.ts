@@ -17,12 +17,20 @@ export const SFX_KEYS = [
   'fragment_missed',
   'strike_start',
   'strike_hit',
+  'perfect_hit',
+  'perfect_start',
   'enemy_telegraph',
   'enemy_counter',
   'enemy_down',
+  'notice_sound',
+  'notice_sight',
   'dive_ready',
   'dive_start',
   'dive_impact',
+  'checkpoint',
+  'death',
+  'respawn',
+  'room_enter',
 ] as const;
 
 export type SfxKey = (typeof SFX_KEYS)[number];

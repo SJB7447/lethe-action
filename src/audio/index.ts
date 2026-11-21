@@ -57,8 +57,17 @@ export function initAudio(bus: EventBus): void {
     sfx.play('strike_start', { volume: 0.44, rate: 1 + Math.min(chain, 8) * 0.03 });
   });
 
-  bus.on('strike:hit', ({ chain }) => {
+  let currentRoomId: string | null = null;
+
+  bus.on('strike:hit', ({ chain, perfect }) => {
     sfx.play('strike_hit', { volume: 0.86, rate: 1 + Math.min(chain, 8) * 0.045 });
+    if (perfect) {
+      sfx.play('perfect_hit', { volume: 0.72, rate: 1 + Math.min(chain, 6) * 0.03 });
+    }
+  });
+
+  bus.on('perfect:start', () => {
+    sfx.play('perfect_start', { volume: 0.65 });
   });
 
   bus.on('enemy:telegraph', ({ counter }) => {
@@ -67,6 +76,12 @@ export function initAudio(bus: EventBus): void {
 
   bus.on('enemy:down', () => {
     sfx.play('enemy_down', { volume: 0.55 });
+  });
+
+  bus.on('enemy:notice', ({ cause }) => {
+    sfx.play(cause === 'sight' ? 'notice_sight' : 'notice_sound', {
+      volume: cause === 'sight' ? 0.72 : 0.52,
+    });
   });
 
   bus.on('dive:ready', () => {
@@ -79,5 +94,24 @@ export function initAudio(bus: EventBus): void {
 
   bus.on('dive:impact', () => {
     sfx.play('dive_impact', { volume: 0.92 });
+  });
+
+  bus.on('room:enter', ({ roomId }) => {
+    if (currentRoomId !== null && currentRoomId !== roomId) {
+      sfx.play('room_enter', { volume: 0.5 });
+    }
+    currentRoomId = roomId;
+  });
+
+  bus.on('checkpoint', () => {
+    sfx.play('checkpoint', { volume: 0.64 });
+  });
+
+  bus.on('player:death', () => {
+    sfx.play('death', { volume: 0.82 });
+  });
+
+  bus.on('player:respawn', () => {
+    sfx.play('respawn', { volume: 0.62 });
   });
 }
