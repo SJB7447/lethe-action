@@ -14,6 +14,7 @@ export const DEFAULT_TUNING = {
   // ── 퍼펙트 (난이도) ──
   perfectWindow: 0.15, // 조각이 열린 직후 이 시간 안에 공격하면 퍼펙트 → 퍼펙트 연쇄 (화면 안 모든 적 록온)
   gaugePerfectBonus: 8, // 퍼펙트 타격 추가 게이지
+  perfectMashGuard: 0.15, // 연타 방지 (실제 시간 s): 공격 입력 간격이 이보다 짧거나, 조각이 열리기 직전 이 시간 안에 헛공격이 있으면 퍼펙트 아님
 
   // ── 시선 (이단아) ──
   gazeHalfAngle: 30, // 시선 원뿔 반각 (도). 이 안에 있고 벽에 가리지 않은 적만 록온 (거리는 lockRange)

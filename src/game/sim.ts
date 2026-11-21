@@ -43,6 +43,13 @@ export interface Player extends Body {
   stepTimer: number;
   /** 지금 파고드는 공격이 퍼펙트 시간 안에 시작됐는지 */
   strikePerfect: boolean;
+  /** 마지막 공격 입력 시각 (게임 시간). "조각이 열린 뒤에 눌렀는가" 판정용 */
+  attackPressTime: number;
+  /** 마지막 공격 입력과 그 직전 입력의 실제 시각. 연타 판정용 (히트스톱 중에도 흐르는 시계) */
+  pressReal: number;
+  prevPressReal: number;
+  /** 파고들기를 시작하지 않은 마지막 공격 입력의 실제 시각 (헛클릭·바늘·남은 선입력) */
+  lastFreePressReal: number;
 }
 
 export type Awareness = 'idle' | 'heard' | 'alert';
@@ -93,6 +100,8 @@ export interface Enemy extends Body {
   viewFan: Vec[];
   /** >0이면 퍼펙트 판정 시간 (조각이 열린 직후, 남은 시간) */
   perfectTimer: number;
+  /** 조각이 열린 시각 (게임 시간) */
+  openedAt: number;
 }
 
 export interface Needle {
@@ -158,6 +167,8 @@ export class Sim {
   private diveImpactDone = false;
   private ghostTimer = 0;
   private accumulator = 0;
+  /** 실제 경과 시간 (히트스톱 중에도 흐름). 입력 간격 판정용 */
+  private realClock = 0;
   private nextId = 1;
   private wasGrounded = true;
 
@@ -177,6 +188,7 @@ export class Sim {
       wallLock: 0, dashTimer: 0, dashCd: 0, airDashes: 1, dashDir: { x: 1, y: 0 }, needleCd: 0,
       attackBuf: 0, dodgeBonus: 0, strikeTarget: null, strikeTimer: 0, hurtFlash: 0,
       gaze: 0, gazeActive: false, eyeX: 0, eyeY: 0, gazeFan: [], stepTimer: 0, strikePerfect: false,
+      attackPressTime: -Infinity, pressReal: -Infinity, prevPressReal: -Infinity, lastFreePressReal: -Infinity,
     };
     this.enemies = ROOM.enemies.map((sp) => this.makeEnemy(sp));
     this.needles = [];
@@ -206,7 +218,7 @@ export class Sim {
       hp, maxHp: hp, state: 'patrol', timer: 0, dir: 1, attackCd: 1, lungeDir: { x: 0, y: 0 },
       counter: false, lockProgress: 0, fragment: 0, fragmentMax: 1, hurtFlash: 0, bob: Math.random() * 6,
       awareness: 'idle', awareTimer: 0, heardX: 0, heardY: 0, markTimer: 0, markKind: 'sound',
-      eyeX: 0, eyeY: 0, viewFan: [], perfectTimer: 0,
+      eyeX: 0, eyeY: 0, viewFan: [], perfectTimer: 0, openedAt: -Infinity,
     };
   }
 
@@ -226,6 +238,7 @@ export class Sim {
   }
 
   private advance(realDt: number): void {
+    this.realClock += realDt;
     const p = this.player;
     if (this.input.consume('reset')) this.reset();
     if (this.input.consume('assist')) {
@@ -238,7 +251,13 @@ export class Sim {
     if (this.diveTimer > 0) this.updateDive(realDt);
 
     // 공격 선입력은 히트스톱 중에도 받아 둡니다.
-    if (this.input.consume('attack')) p.attackBuf = T.attackBuffer;
+    if (this.input.consume('attack')) {
+      p.attackBuf = T.attackBuffer;
+      p.attackPressTime = this.time;
+      p.prevPressReal = p.pressReal;
+      p.pressReal = this.realClock;
+      p.lastFreePressReal = this.realClock; // 파고들기를 시작하면 beginStrike에서 지웁니다
+    }
 
     if (this.hitstop > 0) {
       this.hitstop -= realDt;
@@ -582,7 +601,10 @@ export class Sim {
     const window = T.fragmentWindow * (T.assist ? T.assistWindowBonus : 1);
     e.fragment = window;
     e.fragmentMax = window;
-    e.perfectTimer = Math.min(window, T.perfectWindow * (T.assist ? T.assistWindowBonus : 1));
+    e.openedAt = this.time;
+    // 열리기 직전에 연타(파고들기로 이어지지 않은 공격 입력)가 있었다면 이 조각은 퍼펙트 기회가 없습니다.
+    const mashed = this.realClock - this.player.lastFreePressReal < T.perfectMashGuard;
+    e.perfectTimer = mashed ? 0 : Math.min(window, T.perfectWindow * (T.assist ? T.assistWindowBonus : 1));
     this.bus.emit('fragment:open', { enemyId: e.id, window, chained });
   }
 
@@ -633,7 +655,13 @@ export class Sim {
     p.strikeTarget = e;
     // 먼 대상(퍼펙트 연쇄)까지 도달할 수 있게 이동 시간을 거리에 맞춤
     p.strikeTimer = Math.max(0.6, Math.hypot(cx(e) - cx(p), cy(e) - cy(p)) / T.chainSpeed + 0.2);
-    p.strikePerfect = e.perfectTimer > 0; // 퍼펙트 시간 안에 공격을 시작했는지
+    // 퍼펙트 조건:
+    //  1) 퍼펙트 시간 안 (열리기 직전 헛공격이 있었으면 그 조각은 처음부터 퍼펙트 시간 0)
+    //  2) 조각이 열린 뒤에 새로 누른 입력 (열리기 전 선입력은 일반 타격)
+    //  3) 바로 전 입력과의 간격이 연타 방지 시간 이상 (연타는 일반 타격)
+    p.strikePerfect =
+      e.perfectTimer > 0 && p.attackPressTime >= e.openedAt && p.pressReal - p.prevPressReal >= T.perfectMashGuard;
+    p.lastFreePressReal = -Infinity; // 이 입력은 파고들기에 쓰였으므로 헛공격으로 치지 않음
     p.invuln = Math.max(p.invuln, 0.3);
     this.bus.emit('strike:start', { enemyId: e.id, chain: this.chain + 1 });
   }

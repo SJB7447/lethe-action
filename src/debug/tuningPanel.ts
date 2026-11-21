@@ -24,6 +24,7 @@ const GROUPS: { title: string; expanded: boolean; items: Range[] }[] = [
     items: [
       ['perfectWindow', '퍼펙트 판정 시간', 0, 0.6, 0.01],
       ['gaugePerfectBonus', '퍼펙트 추가 게이지', 0, 40, 1],
+      ['perfectMashGuard', '퍼펙트 연타 방지 시간', 0, 0.6, 0.01],
     ],
   },
   {
