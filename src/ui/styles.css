@@ -557,21 +557,230 @@ body {
   color: var(--text-muted);
 }
 
-/* 스테이지 클리어 기록 화면 */
-.clear-overlay {
+/* 보스 체력 막대 (좌상단 HUD 아래 배치해 .help·#tuning·.combo-wrap과 겹치지 않음) */
+.boss-hud {
+  position: absolute;
+  top: 70px;
+  left: 16px;
+  width: 430px;
+  padding: 8px 14px 10px;
+  background: var(--ink-panel);
+  border: 1px solid rgba(194, 51, 77, 0.45);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.24s ease, transform 0.24s ease, border-color 0.24s ease;
+}
+
+.boss-hud.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.boss-hud.phase2 {
+  border-color: var(--crimson-bright);
+  box-shadow: 0 6px 24px rgba(194, 51, 77, 0.35);
+}
+
+.boss-hud.down {
+  border-color: var(--white-mem);
+  box-shadow: 0 0 22px rgba(255, 241, 207, 0.35);
+}
+
+.boss-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.boss-name {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--white-mem);
+}
+
+.boss-phase {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--amber);
+}
+
+.boss-hud.phase2 .boss-phase {
+  color: var(--crimson-bright);
+}
+
+.boss-bar {
+  position: relative;
+  width: 100%;
+  height: 10px;
+  background: #141824;
+  border: 1px solid rgba(255, 241, 207, 0.2);
+  overflow: hidden;
+}
+
+.boss-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, var(--amber-deep) 0%, var(--amber) 70%, var(--amber-bright) 100%);
+  transition: width 0.14s ease-out, background 0.25s ease;
+}
+
+.boss-hud.phase2 .boss-fill {
+  background: linear-gradient(90deg, #6e1528 0%, var(--crimson) 65%, var(--crimson-bright) 100%);
+}
+
+/* 페이즈 2 경계 표시 (50%) */
+.boss-phase-mark {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: 50%;
+  width: 2px;
+  background: var(--white-mem);
+  opacity: 0.72;
+  box-shadow: 0 0 6px rgba(255, 241, 207, 0.7);
+}
+
+/* 보스 다운 알림 */
+.boss-down-banner {
+  position: absolute;
+  top: 136px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 14px;
+  background: rgba(11, 13, 20, 0.88);
+  border-left: 3px solid var(--amber-bright);
+  border-top: 1px solid rgba(255, 241, 207, 0.35);
+  border-bottom: 1px solid rgba(255, 241, 207, 0.35);
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.boss-down-banner.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.boss-down-sub {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  color: var(--amber);
+}
+
+.boss-down-banner strong {
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  color: var(--white-mem);
+  text-shadow: 0 0 12px var(--amber-glow);
+}
+
+/* 보스 등장 이름 배너 */
+.boss-intro {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.96);
+  text-align: center;
+  padding: 16px 46px;
+  border-top: 1px solid rgba(194, 51, 77, 0.75);
+  border-bottom: 1px solid rgba(194, 51, 77, 0.75);
+  background: linear-gradient(90deg, transparent, rgba(11, 13, 20, 0.9) 22%, rgba(11, 13, 20, 0.9) 78%, transparent);
+  opacity: 0;
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+.boss-intro.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.boss-intro-sub {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.34em;
+  color: var(--crimson-bright);
+  margin-bottom: 6px;
+}
+
+.boss-intro-name {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: var(--white-mem);
+  text-shadow: 0 0 22px rgba(194, 51, 77, 0.65);
+}
+
+/* 보스 격파 연출 */
+.boss-defeat {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0;
+  background: radial-gradient(circle at center, rgba(232, 176, 75, 0.18) 0%, rgba(11, 13, 20, 0.65) 74%);
+  transition: opacity 0.24s ease;
+}
+
+.boss-defeat.show {
+  opacity: 1;
+}
+
+.boss-defeat-emblem {
+  text-align: center;
+  padding: 20px 52px;
+  border-top: 1px solid var(--border-bright);
+  border-bottom: 1px solid var(--border-bright);
+  background: linear-gradient(90deg, transparent, rgba(11, 13, 20, 0.9) 20%, rgba(11, 13, 20, 0.9) 80%, transparent);
+}
+
+.boss-defeat-sub {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.36em;
+  color: var(--amber);
+  margin-bottom: 8px;
+}
+
+.boss-defeat-title {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: var(--white-mem);
+  text-shadow: 0 0 24px var(--amber-glow);
+}
+
+/* 스테이지 클리어 기록 화면 (#hud는 stacking context가 아니므로 z-index: 20으로 #tuning(10) 및 .help 위에 표시) */
+.clear-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
   background: rgba(11, 13, 20, 0.72);
   backdrop-filter: blur(4px);
-  transition: opacity 0.26s ease;
+  transition: opacity 0.26s ease, visibility 0.26s ease;
 }
 
 .clear-overlay.show {
   opacity: 1;
+  visibility: visible;
+}
+
+#hud.clear-open .help,
+#hud.clear-open .help-hint {
+  visibility: hidden;
 }
 
 .clear-card {

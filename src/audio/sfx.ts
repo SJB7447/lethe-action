@@ -31,6 +31,15 @@ export const SFX_KEYS = [
   'death',
   'respawn',
   'room_enter',
+  'boss_wave_telegraph',
+  'boss_wave_active',
+  'boss_charge_telegraph',
+  'boss_charge_active',
+  'boss_weakpoint',
+  'boss_down',
+  'boss_recover',
+  'boss_phase',
+  'boss_defeat',
 ] as const;
 
 export type SfxKey = (typeof SFX_KEYS)[number];

@@ -17,6 +17,10 @@ export const PALETTE = {
   amberDeep: 0x9e6f21,
   /** 챕터 2, 균열 보이는 적·피격 */
   deepCrimson: 0xc2334d,
+  /** 보스 기본 장갑 톤 */
+  bossArmor: 0x2b1d29,
+  /** 보스 페이즈 2 장갑 톤 */
+  bossPhase2: 0x4a1929,
   /** 챕터 3 */
   prussianBlue: 0x1f3a5f,
   /** 챕터 4, 고스트 다이빙·연결 게이지 */

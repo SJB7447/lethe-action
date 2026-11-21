@@ -46,6 +46,34 @@ export function initUI(bus: EventBus): void {
       <span>CHECKPOINT // 기억 동기화 완료</span>
     </div>
 
+    <div class="boss-hud" id="hud-boss">
+      <div class="boss-head">
+        <span class="boss-name" id="hud-boss-name"></span>
+        <span class="boss-phase" id="hud-boss-phase">PHASE 1</span>
+      </div>
+      <div class="boss-bar">
+        <div class="boss-fill" id="hud-boss-fill"></div>
+        <div class="boss-phase-mark" title="Phase 2"></div>
+      </div>
+    </div>
+
+    <div class="boss-down-banner" id="hud-boss-down">
+      <span class="boss-down-sub">WEAKPOINTS SHATTERED</span>
+      <strong>핵심 균열 개방 — 파고들어라</strong>
+    </div>
+
+    <div class="boss-intro" id="hud-boss-intro">
+      <div class="boss-intro-sub">MEMORY ANOMALY DETECTED</div>
+      <div class="boss-intro-name" id="hud-boss-intro-name"></div>
+    </div>
+
+    <div class="boss-defeat" id="hud-boss-defeat">
+      <div class="boss-defeat-emblem">
+        <div class="boss-defeat-sub">MEMORY TERMINATED</div>
+        <div class="boss-defeat-title" id="hud-boss-defeat-name"></div>
+      </div>
+    </div>
+
     <div class="combo-wrap">
       <div class="combo" id="hud-combo"></div>
       <div class="perfect-pop" id="hud-perfect-pop">PERFECT</div>
@@ -112,6 +140,15 @@ export function initUI(bus: EventBus): void {
   const roomIdEl = byId('hud-room-id');
   const roomNameEl = byId('hud-room-name');
   const checkpointToast = byId('hud-checkpoint');
+  const bossHud = byId('hud-boss');
+  const bossName = byId('hud-boss-name');
+  const bossPhase = byId('hud-boss-phase');
+  const bossFill = byId('hud-boss-fill');
+  const bossDown = byId('hud-boss-down');
+  const bossIntro = byId('hud-boss-intro');
+  const bossIntroName = byId('hud-boss-intro-name');
+  const bossDefeat = byId('hud-boss-defeat');
+  const bossDefeatName = byId('hud-boss-defeat-name');
   const combo = byId('hud-combo');
   const perfectPop = byId('hud-perfect-pop');
   const perfectBadge = byId('hud-perfect-badge');
@@ -127,6 +164,16 @@ export function initUI(bus: EventBus): void {
   let roomTimer = 0;
   let cpTimer = 0;
   let perfectPopTimer = 0;
+  let bossIntroTimer = 0;
+  let bossRoomStarted = false;
+
+  const hideBossHud = () => {
+    bossHud.classList.remove('show', 'phase2', 'down');
+    bossDown.classList.remove('show');
+    bossIntro.classList.remove('show');
+    bossDefeat.classList.remove('show');
+    window.clearTimeout(bossIntroTimer);
+  };
 
   const triggerFlash = (kind: 'hurt' | 'impact' | 'respawn') => {
     flash.classList.remove('hurt', 'impact', 'respawn');
@@ -146,9 +193,14 @@ export function initUI(bus: EventBus): void {
     diveCount.textContent = '';
     deathOverlay.classList.remove('show');
     clearOverlay.classList.remove('show');
+    root.classList.remove('clear-open');
+    if (!bossRoomStarted) hideBossHud();
   });
 
   bus.on('room:enter', ({ roomId, name }) => {
+    if (!bossRoomStarted) hideBossHud();
+    bossRoomStarted = false;
+
     roomIdEl.textContent = `AREA // ${roomId.toUpperCase()}`;
     roomNameEl.textContent = name;
     roomBanner.classList.remove('show');
@@ -158,6 +210,55 @@ export function initUI(bus: EventBus): void {
     roomTimer = window.setTimeout(() => {
       roomBanner.classList.remove('show');
     }, 2200);
+  });
+
+  bus.on('boss:start', ({ name }) => {
+    bossRoomStarted = true;
+    bossName.textContent = name;
+    bossPhase.textContent = 'PHASE 1';
+    bossFill.style.width = '100%';
+    bossHud.classList.remove('phase2', 'down');
+    bossHud.classList.add('show');
+    bossDown.classList.remove('show');
+    bossDefeat.classList.remove('show');
+
+    bossIntroName.textContent = name;
+    bossIntro.classList.remove('show');
+    void bossIntro.offsetWidth;
+    bossIntro.classList.add('show');
+    window.clearTimeout(bossIntroTimer);
+    bossIntroTimer = window.setTimeout(() => {
+      bossIntro.classList.remove('show');
+    }, 2200);
+  });
+
+  bus.on('boss:hp', ({ hp: v, maxHp }) => {
+    const ratio = maxHp > 0 ? Math.max(0, Math.min(1, v / maxHp)) : 0;
+    bossFill.style.width = `${ratio * 100}%`;
+  });
+
+  bus.on('boss:phase', ({ phase }) => {
+    bossPhase.textContent = `PHASE ${phase}`;
+    bossHud.classList.toggle('phase2', phase >= 2);
+  });
+
+  bus.on('boss:down', () => {
+    bossHud.classList.add('down');
+    bossDown.classList.add('show');
+  });
+
+  bus.on('boss:recover', () => {
+    bossHud.classList.remove('down');
+    bossDown.classList.remove('show');
+  });
+
+  bus.on('boss:defeat', ({ name }) => {
+    bossHud.classList.remove('show', 'phase2', 'down');
+    bossDown.classList.remove('show');
+    bossIntro.classList.remove('show');
+    bossDefeatName.textContent = `${name} 격파`;
+    bossDefeat.classList.add('show');
+    triggerFlash('impact');
   });
 
   bus.on('checkpoint', () => {
@@ -180,6 +281,7 @@ export function initUI(bus: EventBus): void {
   });
 
   bus.on('stage:clear', ({ time, deaths, maxCombo, perfects, spotted }) => {
+    bossDefeat.classList.remove('show');
     clearStats.innerHTML = `
       <div class="stat-item"><span class="stat-label">클리어 시간</span><strong class="stat-val">${time.toFixed(1)}s</strong></div>
       <div class="stat-item"><span class="stat-label">최대 연쇄</span><strong class="stat-val amber">${maxCombo}</strong></div>
@@ -187,6 +289,7 @@ export function initUI(bus: EventBus): void {
       <div class="stat-item"><span class="stat-label">발각</span><strong class="stat-val">${spotted}</strong></div>
       <div class="stat-item"><span class="stat-label">사망</span><strong class="stat-val">${deaths}</strong></div>
     `;
+    root.classList.add('clear-open');
     clearOverlay.classList.add('show');
   });
 
