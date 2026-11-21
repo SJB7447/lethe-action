@@ -105,8 +105,10 @@ export const DEFAULT_TUNING = {
   bossMaxHp: 25,
   bossWeakDamage: 1, // 약점 균열 한 곳
   bossPerfectDamage: 2, // 약점 균열 퍼펙트
-  bossCoreDamage: 4, // 다운 중 핵심 균열 (퍼펙트면 ×1.5)
+  bossCoreDamage: 4, // 다운 중 핵심 균열
+  bossCorePerfectMult: 1.5, // 핵심 균열 퍼펙트 피해 배율
   bossDiveDamage: 5, // 다운 중 고스트 다이빙
+  bossDiveRange: 900, // 고스트 다이빙이 보스에 닿는 가로 거리 (px)
   bossDownTime: 3, // 다운 시간 = 핵심 균열이 열려 있는 시간
   bossIntroTime: 1.5,
   bossMoveSpeed: 70,
@@ -117,6 +119,7 @@ export const DEFAULT_TUNING = {
   bossPhase2WaveBoost: 1.35,
   bossWaveWidth: 44, // 파동 고리 두께 (이 안의 조각이 닫힘)
   bossWaveMaxRadius: 1100,
+  bossWaveDodgeMargin: 60, // 파동 고리 밖 이 거리 안에서 대시하면 회피 성공 (px)
   bossWaveRecover: 0.5,
   bossChargeTelegraph: 0.7, // 돌진 예고
   bossChargeSpeed: 900,

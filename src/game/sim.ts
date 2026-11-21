@@ -698,8 +698,9 @@ export class Sim {
     }
   }
 
-  private openFragment(e: Enemy, chained: boolean): void {
-    const window = T.fragmentWindow * (T.assist ? T.assistWindowBonus : 1);
+  /** 조각을 엽니다. windowOverride를 주면 그 시간으로 (보스 핵심 균열 = 다운 시간). 이벤트도 같은 값 */
+  private openFragment(e: Enemy, chained: boolean, windowOverride?: number): void {
+    const window = windowOverride ?? T.fragmentWindow * (T.assist ? T.assistWindowBonus : 1);
     e.fragment = window;
     e.fragmentMax = window;
     e.openedAt = this.time;
@@ -1076,7 +1077,7 @@ export class Sim {
         this.downEnemy(e);
         count++;
       }
-      if (this.boss && this.boss.state !== 'defeated' && Math.abs(cx(this.boss) - cx(this.player)) <= 900) this.bossDiveHit();
+      if (this.boss && this.boss.state !== 'defeated' && Math.abs(cx(this.boss) - cx(this.player)) <= T.bossDiveRange) this.bossDiveHit();
       this.gauge = 0;
       this.shake = 20;
       this.hitstop = 0.12;
@@ -1264,7 +1265,7 @@ export class Sim {
     const p = this.player;
     if (b.waveActive) {
       const dp = Math.hypot(cx(p) - b.waveX, cy(p) - b.waveY);
-      if (Math.abs(dp - b.waveRadius) < T.bossWaveWidth / 2 + 60) return true;
+      if (Math.abs(dp - b.waveRadius) < T.bossWaveWidth / 2 + T.bossWaveDodgeMargin) return true;
     }
     const charging = b.pattern === 'charge' && (b.state === 'active' || (b.state === 'telegraph' && b.timer < 0.2));
     return charging && Math.abs(cx(b) - cx(p)) < T.perfectDodgeRange + b.w / 2;
@@ -1278,12 +1279,15 @@ export class Sim {
   /** 기억 소거 파동: 고리가 퍼지며 닿은 열린 조각을 닫고 록온 진행을 지움. 끝나면 true */
   private updateBossWave(b: BossData, dt: number): boolean {
     const speed = T.bossWaveSpeed * (b.phase === 2 ? T.bossPhase2WaveBoost : 1);
+    const r0 = b.waveRadius;
     b.waveRadius += speed * dt;
     const half = T.bossWaveWidth / 2;
+    // 이번 스텝에 고리(두께 포함)가 쓸고 지나간 구간 [r0 - half, r1 + half] 안이면 닿은 것 (빠르고 얇아도 건너뛰지 않음)
+    const swept = (d: number, extra = 0) => d >= r0 - half - extra && d <= b.waveRadius + half + extra;
     for (const e of this.enemies) {
       if (e.state === 'down') continue;
       const d = Math.hypot(cx(e) - b.waveX, cy(e) - b.waveY);
-      if (Math.abs(d - b.waveRadius) > half) continue;
+      if (!swept(d)) continue;
       if (e.fragment > 0) {
         e.fragment = 0;
         e.perfectTimer = 0;
@@ -1293,7 +1297,7 @@ export class Sim {
     }
     const p = this.player;
     const dp = Math.hypot(cx(p) - b.waveX, cy(p) - b.waveY);
-    if (Math.abs(dp - b.waveRadius) <= half + p.w / 2) this.hurtPlayer(b.waveX);
+    if (swept(dp, p.w / 2)) this.hurtPlayer(b.waveX);
     if (b.waveRadius >= T.bossWaveMaxRadius) {
       b.waveActive = false;
       return true;
@@ -1311,7 +1315,7 @@ export class Sim {
       this.bus.emit('boss:weakpoint', { broken, total: weak.length });
       if (broken === weak.length && b.hp > 0 && b.state !== 'down') this.bossDown(b);
     } else {
-      this.damageBoss(T.bossCoreDamage * (this.strikingPerfect ? 1.5 : 1));
+      this.damageBoss(T.bossCoreDamage * (this.strikingPerfect ? T.bossCorePerfectMult : 1));
     }
   }
 
@@ -1339,14 +1343,20 @@ export class Sim {
       core.state = 'recover';
       core.timer = Infinity;
       this.placeBossParts();
-      this.openFragment(core, false);
-      core.fragment = core.fragmentMax = T.bossDownTime;
+      this.openFragment(core, false, T.bossDownTime);
     }
     this.shake = Math.max(this.shake, 16);
     this.bus.emit('boss:down', { duration: T.bossDownTime });
   }
 
   private bossRecoverFromDown(b: BossData): void {
+    // 시간 안에 치지 못한 핵심 균열은 일반 조각을 놓친 것과 같이 처리 (fragment:close missed, 연쇄·퍼펙트 종료)
+    const core = this.bossParts().find((x) => x.bossPart === 'core');
+    if (core && core.state !== 'down' && core.fragment > 0) {
+      core.fragment = 0;
+      core.perfectTimer = 0;
+      this.onFragmentMissed(core);
+    }
     for (const e of this.bossParts()) {
       e.fragment = 0;
       e.perfectTimer = 0;

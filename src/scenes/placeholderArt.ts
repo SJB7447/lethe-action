@@ -270,7 +270,7 @@ function drawBoss(g: Phaser.GameObjects.Graphics, v: ArtView): void {
   g.fillRect(b.x + b.w / 2 + b.facing * 22 - 10, b.y + 26, 20, 6);
   // 예고: 파동은 몸이 붉게 맥동, 돌진은 앞쪽 화살표
   if (b.state === 'telegraph') {
-    const blink = Math.floor(v.realTime * 14) % 2 === 0;
+    const blink = Math.floor(v.time * 14) % 2 === 0;
     if (b.pattern === 'wave') {
       g.lineStyle(4, C.cracked, blink ? 1 : 0.4);
       g.strokeCircle(b.x + b.w / 2, b.y + b.h / 2, 30 + (1 - b.timer / Math.max(0.01, v.tuning.bossWaveTelegraph)) * 90);
@@ -282,7 +282,7 @@ function drawBoss(g: Phaser.GameObjects.Graphics, v: ArtView): void {
     }
   }
   if (b.state === 'down') {
-    g.fillStyle(0xffffff, 0.08 + 0.05 * Math.sin(v.realTime * 6));
+    g.fillStyle(0xffffff, 0.08 + 0.05 * Math.sin(v.time * 6));
     g.fillRect(b.x - 6, b.y - 6, b.w + 12, b.h + 12);
   }
 }
