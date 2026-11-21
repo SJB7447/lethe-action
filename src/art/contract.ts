@@ -20,11 +20,13 @@ import type { Tuning } from '../core/tuning';
 export const ART_LAYERS = [
   'background', // 배경 (시차 스크롤, 중력 렌즈 왜곡 등)
   'terrain', // 발판·벽
+  'perception', // 시선 원뿔(이단아·적), 소리 범위
   'enemies', // 보안 요원 몸체, 공격 예고, 쓰러짐
   'afterimages', // 대시·파고들기 잔상, 파고드는 궤적
   'player', // 이단아
   'projectiles', // 기억 추출 바늘
   'particles', // 타격·착지 파편 등
+  'alerts', // 적의 느낌표 (소리로 들음 / 이단아를 봄)
   'fragments', // 록온 진행과 찢긴 기억 조각 (항상 맨 위에 가깝게)
   'screen', // 화면 전체 효과 (고스트 다이빙 등). 카메라 좌표 기준으로 그립니다
 ] as const;
@@ -40,6 +42,11 @@ export function layerDepth(layer: ArtLayer): number {
 export const DEBUG_DEPTH = 1000;
 
 // ───────────────────────── 읽기 전용 상태 ─────────────────────────
+
+export interface PointView {
+  readonly x: number;
+  readonly y: number;
+}
 
 export interface RectView {
   readonly x: number;
@@ -62,7 +69,14 @@ export interface PlayerView extends RectView {
   readonly dodgeBonus: number; // 남은 회피 보너스 시간
   readonly dashDir: { readonly x: number; readonly y: number };
   readonly strikeTarget: EnemyView | null; // 파고드는 대상
+  readonly gaze: number; // 시선 각도 (라디안, 0 = 오른쪽, 아래가 +)
+  readonly gazeActive: boolean; // 마우스·오른쪽 스틱으로 보고 있는지 (아니면 몸이 향한 쪽)
+  readonly eyeX: number; // 눈 위치 (시선이 나가는 곳)
+  readonly eyeY: number;
+  readonly gazeFan: readonly PointView[]; // 시선 원뿔 = 록온 가능 범위 (벽에서 잘림). 첫 점은 눈
 }
+
+export type Awareness = 'idle' | 'heard' | 'alert';
 
 export type EnemyState = 'patrol' | 'telegraph' | 'lunge' | 'recover' | 'stunned' | 'down';
 
@@ -82,6 +96,25 @@ export interface EnemyView extends RectView {
   readonly lockProgress: number; // 0..1 록온 진행
   readonly fragment: number; // >0이면 조각이 열려 있음 (남은 시간)
   readonly fragmentMax: number; // 조각이 열린 전체 시간
+  readonly awareness: Awareness; // idle 모름 / heard 소리 듣고 확인하러 감 / alert 이단아를 봄
+  readonly markTimer: number; // >0이면 느낌표 표시 중 (남은 시간)
+  readonly markKind: 'sound' | 'sight';
+  readonly eyeX: number;
+  readonly eyeY: number;
+  readonly viewFan: readonly PointView[]; // 적 시선 원뿔 (벽에서 잘림). 첫 점은 눈. 쓰러지면 빈 배열
+}
+
+export type SoundKind = 'step' | 'jump' | 'land' | 'dash' | 'needle' | 'needleHit' | 'strike' | 'dive';
+
+export interface SoundView {
+  readonly x: number;
+  readonly y: number;
+  readonly radius: number;
+  readonly kind: SoundKind;
+  readonly life: number; // 남은 표시 시간
+  readonly maxLife: number;
+  /** 소리가 닿는 범위의 모양. 벽 너머는 줄어듭니다. 적이 듣는 판정과 같은 모양 */
+  readonly points: readonly PointView[];
 }
 
 export interface NeedleView {
@@ -130,6 +163,7 @@ export interface ArtView {
   readonly needles: readonly NeedleView[];
   readonly particles: readonly ParticleView[];
   readonly ghosts: readonly GhostView[];
+  readonly sounds: readonly SoundView[];
   readonly world: WorldView;
   readonly camera: CameraView;
   readonly combo: number;

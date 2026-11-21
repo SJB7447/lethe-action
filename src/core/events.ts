@@ -18,6 +18,7 @@ export interface GameEventMap {
   'strike:hit': { enemyId: number; chain: number };
   'enemy:telegraph': { enemyId: number; counter: boolean };
   'enemy:down': { enemyId: number };
+  'enemy:notice': { enemyId: number; cause: 'sound' | 'sight' };
   'combo:change': { count: number };
   'combo:end': { total: number };
   'gauge:change': { value: number; max: number };

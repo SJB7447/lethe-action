@@ -79,6 +79,10 @@ export class LabScene extends Phaser.Scene {
     this.realTime += realDt;
     this.input_.poll();
     if (this.input_.consume('debug')) T.showDebug = !T.showDebug;
+    // 마우스가 가리키는 월드 좌표 (카메라가 움직여도 매 프레임 다시 계산)
+    const ptr = this.input.activePointer;
+    const world = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+    this.sim.aimWorld = { x: world.x, y: world.y };
     this.sim.frame(realDt);
     this.input_.endFrame();
     this.updateCamera(realDt);
@@ -114,6 +118,7 @@ export class LabScene extends Phaser.Scene {
       needles: sim.needles,
       particles: sim.particles,
       ghosts: sim.ghosts,
+      sounds: sim.sounds,
       world: { width: sim.world.width, height: sim.world.height, solids: sim.world.solids },
       camera: { scrollX: cam.scrollX, scrollY: cam.scrollY, width: this.scale.width, height: this.scale.height },
       combo: sim.combo,

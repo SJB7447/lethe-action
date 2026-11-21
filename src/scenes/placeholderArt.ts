@@ -1,5 +1,5 @@
 import type * as Phaser from 'phaser';
-import type { ArtLayer, ArtView, EnemyView, LayerPainter } from '../art/contract';
+import type { ArtLayer, ArtView, EnemyView, LayerPainter, PointView } from '../art/contract';
 
 /**
  * 임시 사각형 그림. 그래픽이 꺼져 있거나(?art=0) 그 층을 구현하지 않았을 때 씁니다.
@@ -18,6 +18,8 @@ const C = {
   telegraph: 0xffd166,
   amber: 0xe8b04b,
   needle: 0xd8dcf0,
+  sound: 0xb8c4ff,
+  enemyView: 0xd8dcf0,
 };
 
 const cx = (r: { x: number; w: number }) => r.x + r.w / 2;
@@ -36,6 +38,43 @@ export const placeholderArt: Record<ArtLayer, LayerPainter> = {
       g.fillRect(s.x, s.y, s.w, s.h);
       g.lineStyle(2, C.solidEdge, 1);
       g.lineBetween(s.x, s.y, s.x + s.w, s.y);
+    }
+  },
+
+  perception(g, v) {
+    if (!v.tuning.showPerception) return;
+    // 소리 범위: 외곽선은 처음부터 실제 판정 범위 그대로 (적은 소리가 난 순간 이 안에서 듣습니다).
+    // 안쪽에서 퍼져 나가는 물결은 장식이며 판정과 무관합니다.
+    for (const s of v.sounds) {
+      const age = 1 - s.life / s.maxLife; // 0 → 1
+      const fade = 1 - age;
+      polygon(g, s.points, C.sound, 0.06 * fade, 1.5, 0.6 * fade);
+      const wave = Math.min(1, age / 0.35);
+      if (wave < 1) {
+        const pts = s.points.map((q) => ({ x: s.x + (q.x - s.x) * wave, y: s.y + (q.y - s.y) * wave }));
+        polygon(g, pts, C.sound, 0, 1, 0.35 * (1 - wave));
+      }
+    }
+    // 적 시선
+    for (const e of v.enemies) {
+      if (e.viewFan.length < 3) continue;
+      const col = e.awareness === 'alert' ? C.cracked : e.awareness === 'heard' ? C.amber : C.enemyView;
+      const a = e.awareness === 'idle' ? 0.08 : 0.14;
+      polygon(g, e.viewFan, col, a, 1, a * 2.5);
+    }
+    // 이단아 시선 = 록온 가능 범위
+    const p = v.player;
+    if (p.gazeFan.length >= 3) {
+      polygon(g, p.gazeFan, C.player, 0.06, 1, 0.3);
+    }
+  },
+
+  alerts(g, v) {
+    for (const e of v.enemies) {
+      if (e.state === 'down' || e.markTimer <= 0) continue;
+      const k = e.markTimer / v.tuning.noticeMarkTime; // 1 → 0
+      const pop = k > 0.8 ? 1 + (k - 0.8) * 2.5 : 1; // 처음에 살짝 커졌다 줄어듦
+      drawExclamation(g, e.x + e.w / 2, e.y - 18, pop * 1.5, e.markKind === 'sight' ? C.cracked : C.amber, Math.min(1, k * 3));
     }
   },
 
@@ -61,8 +100,7 @@ export const placeholderArt: Record<ArtLayer, LayerPainter> = {
     if (blink) return;
     g.fillStyle(p.hurtFlash > 0 ? C.playerHurt : C.player, 1);
     g.fillRect(p.x, p.y, p.w, p.h);
-    g.fillStyle(C.bg, 1);
-    g.fillRect(p.facing > 0 ? p.x + p.w - 8 : p.x + 3, p.y + 9, 5, 5);
+    drawPlayerFace(g, v);
     if (p.dodgeBonus > 0) {
       g.lineStyle(2, C.player, 0.6);
       g.strokeRect(p.x - 4, p.y - 4, p.w + 8, p.h + 8);
@@ -132,12 +170,68 @@ function drawEnemyBody(g: Phaser.GameObjects.Graphics, e: EnemyView, v: ArtView)
   if (e.hurtFlash > 0) col = 0xffffff;
   g.fillStyle(col, 1);
   g.fillRect(e.x, e.y, e.w, e.h);
+  // 눈 (보는 쪽). 알아챈 정도에 따라 색이 바뀝니다.
+  const eyeCol = e.awareness === 'alert' ? 0xffffff : e.awareness === 'heard' ? C.amber : 0x1a1d28;
+  g.fillStyle(eyeCol, 1);
+  g.fillRect(e.eyeX - 4, e.eyeY - 2, 8, 4);
   if (e.hp < e.maxHp) {
     g.fillStyle(0x000000, 0.6);
     g.fillRect(e.x, e.y - 8, e.w, 3);
     g.fillStyle(0xffffff, 0.8);
     g.fillRect(e.x, e.y - 8, (e.w * e.hp) / e.maxHp, 3);
   }
+}
+
+/** 이단아 얼굴: 눈 두 개, 눈동자가 시선 방향을 봅니다. */
+function drawPlayerFace(g: Phaser.GameObjects.Graphics, v: ArtView): void {
+  const p = v.player;
+  const fx = p.x + p.w / 2 + p.facing * 2; // 얼굴 중심
+  const fy = p.eyeY;
+  // 얼굴판 (어두운 바이저)
+  g.fillStyle(C.bg, 0.85);
+  g.fillRect(fx - 9, fy - 5, 18, 10);
+  const gx = Math.cos(p.gaze);
+  const gy = Math.sin(p.gaze);
+  for (const ox of [-4, 4]) {
+    const ex = fx + ox;
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(ex, fy, 3);
+    g.fillStyle(C.bg, 1);
+    g.fillCircle(ex + gx * 1.6, fy + gy * 1.6, 1.6);
+  }
+}
+
+/** 닫힌 다각형 (채우기 + 외곽선) */
+function polygon(
+  g: Phaser.GameObjects.Graphics,
+  pts: readonly PointView[],
+  color: number,
+  fillAlpha: number,
+  lineWidth: number,
+  lineAlpha: number,
+): void {
+  if (pts.length < 3) return;
+  g.fillStyle(color, fillAlpha);
+  g.lineStyle(lineWidth, color, lineAlpha);
+  g.beginPath();
+  g.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].x, pts[i].y);
+  g.closePath();
+  g.fillPath();
+  g.strokePath();
+}
+
+/** 느낌표: (x, y)가 아래 끝. 어두운 배경판 위에 막대 + 점 */
+function drawExclamation(g: Phaser.GameObjects.Graphics, x: number, y: number, scale: number, color: number, alpha: number): void {
+  const w = 4 * scale; // 막대 굵기
+  const bar = 11 * scale; // 막대 길이
+  const gap = 2.5 * scale;
+  const total = bar + gap + w;
+  g.fillStyle(C.bg, 0.75 * alpha);
+  g.fillRoundedRect(x - w / 2 - 4, y - total - 4, w + 8, total + 8, 4);
+  g.fillStyle(color, alpha);
+  g.fillRoundedRect(x - w / 2, y - total, w, bar, Math.min(2, w / 2));
+  g.fillCircle(x, y - w / 2, w / 2);
 }
 
 /** 찢긴 기억 균열 (임시 그림) */

@@ -19,6 +19,37 @@ const GROUPS: { title: string; expanded: boolean; items: Range[] }[] = [
     ],
   },
   {
+    title: '시선·적 인식',
+    expanded: true,
+    items: [
+      ['gazeHalfAngle', '이단아 시선 각도(반각°)', 5, 90, 1],
+      ['enemyViewRange', '적 시선 거리', 50, 700, 10],
+      ['enemyViewHalfAngle', '적 시선 각도(반각°)', 5, 90, 1],
+      ['enemyAlertMemory', '발각 유지 시간', 0, 6, 0.1],
+      ['enemyInvestigateTime', '소리 확인 시간', 0, 8, 0.1],
+      ['enemyChaseSpeed', '추격 속도', 0, 500, 5],
+      ['enemyInvestigateSpeed', '확인하러 가는 속도', 0, 400, 5],
+      ['noticeMarkTime', '느낌표 표시 시간', 0.2, 3, 0.1],
+    ],
+  },
+  {
+    title: '소리 범위',
+    expanded: false,
+    items: [
+      ['soundWallFactor', '벽 너머 전달 비율', 0, 1, 0.05],
+      ['soundStep', '발소리', 0, 400, 5],
+      ['soundStepInterval', '발소리 간격', 0.1, 1, 0.01],
+      ['soundJump', '점프', 0, 400, 5],
+      ['soundLand', '착지(최대)', 0, 600, 5],
+      ['soundDash', '대시', 0, 500, 5],
+      ['soundNeedle', '바늘 발사', 0, 500, 5],
+      ['soundNeedleHit', '바늘 적중', 0, 500, 5],
+      ['soundStrike', '파고들기 타격', 0, 800, 10],
+      ['soundDive', '고스트 다이빙', 0, 1500, 10],
+      ['soundLife', '소리 표시 시간', 0.1, 2, 0.05],
+    ],
+  },
+  {
     title: '록온 보조 규칙',
     expanded: false,
     items: [
@@ -71,7 +102,7 @@ const GROUPS: { title: string; expanded: boolean; items: Range[] }[] = [
     title: '적·게이지·연출',
     expanded: false,
     items: [
-      ['enemyAggroRange', '적 공격 감지 거리', 0, 600, 10],
+      ['enemyAggroRange', '적 공격 시작 거리', 0, 600, 10],
       ['enemyTelegraph', '적 공격 예고', 0.1, 1.5, 0.05],
       ['enemyCounterTelegraph', '반격 예고', 0.05, 1, 0.01],
       ['enemyLungeSpeed', '적 돌진 속도', 100, 1200, 10],
@@ -96,6 +127,7 @@ export function initTuningPanel(bus: EventBus, onRespawn: () => void): Pane {
   modes.addBinding(tuning, 'autoRespawn', { label: '적 자동 재생성' });
   modes.addBinding(tuning, 'showDebug', { label: '범위·판정 박스' });
   modes.addBinding(tuning, 'showArt', { label: '그래픽 표시' });
+  modes.addBinding(tuning, 'showPerception', { label: '시선·소리 범위' });
 
   for (const group of GROUPS) {
     const f = pane.addFolder({ title: group.title, expanded: group.expanded });
